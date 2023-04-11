@@ -1,23 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="58a3e39ba95bd0f35846aa1f39aa4cb2574295e1">
-  <category name="Example">
-    <reapack name="cfillion_Hello world.lua" type="script" desc="Hello world">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
-{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
-\widowctrl\hyphauto
-
-{\pard \ql \f0 \sa180 \li0 \fi0 This is an example of a package file. It installs itself as a ReaScript that does nothing but show "Hello World!" in REAPER's scripting console.\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 Packages may also include additional files specified using the @provides tag.\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 This text is the documentation shown when using ReaPack's "About this package" feature. {\field{\*\fldinst{HYPERLINK "https://commonmark.org/"}}{\fldrslt{\ul
-Markdown
-}}}
- {\i formatting} is supported.\par}
-}
-]]></description>
-      </metadata>
-      <version name="1.0" author="cfillion" time="2021-01-04T23:30:32Z">
-        <source main="main">https://github.com/cfillion/reapack-repository-template/raw/58a3e39ba95bd0f35846aa1f39aa4cb2574295e1/Example/cfillion_Hello%20world.lua</source>
+<index version="1" name="Olshalom_Reascripts" commit="73d1bbf4535a4164b60c30324fb34d2f7e0dae2f">
+  <category name="Coloring">
+    <reapack name="olshalom_Artemis_Coloring Tool.lua" type="script" desc="Artemis - Coloring Tool">
+      <version name="1.0" author="olshalom" time="2023-04-11T11:39:21Z">
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/0e1c750338db3c28f58156137b9048a2ce793154/Coloring/olshalom_Artemis_Coloring%20Tool.lua</source>
       </version>
     </reapack>
   </category>
@@ -46,7 +32,7 @@ Packaging Documentation
 }}}
  on reapack-index's wiki.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 The URL to import in ReaPack is {\field{\*\fldinst{HYPERLINK "https://github.com/cfillion/reapack-repository-template/raw/master/index.xml"}}{\fldrslt{\ul
-https://github.com/{\f1 <your username>}/{\f1 <repository name>}/raw/master/index.xml
+https://github.com/olshalom/Olshalom_Reascripts/raw/master/index.xml
 }}}
 .\par}
 }
