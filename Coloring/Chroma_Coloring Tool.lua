@@ -1,9 +1,8 @@
--- @description Chroma
--- @author olshalom 
--- @version 1.0
+-- @description Chroma - Coloring Tool
+-- @author olshalom, vitalker
+-- @version o.5
   
   
-
 
   -- CONSOLE OUTPUT --
   
