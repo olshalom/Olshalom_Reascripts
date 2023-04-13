@@ -1,6 +1,6 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version o.5
+-- @version 0.5
   
   
 
