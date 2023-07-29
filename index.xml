@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="83c085e57b6c18d6286b09df0dc62322e33b2d73">
+<index version="1" name="Olshalom_Reascripts" commit="af9a0d61a332bb86d9bce84dbaff67d63216843c">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.5" author="olshalom, vitalker" time="2023-04-13T01:29:58Z">
@@ -7,6 +7,9 @@
       </version>
       <version name="0.52" author="olshalom, vitalker" time="2023-07-21T20:46:04Z">
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/83c085e57b6c18d6286b09df0dc62322e33b2d73/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.53" author="olshalom, vitalker" time="2023-07-29T20:35:38Z">
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/af9a0d61a332bb86d9bce84dbaff67d63216843c/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
   </category>
