@@ -1,13 +1,13 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.53
+-- @version 0.54
   
   
   
 -- @discription: 
 
---[[PT mode:
-    To use the full potentual of PT-Mode,make sure the Custom color under REAPER Preferences are set correctly,
+--[[Light Mode:
+    To use the full potentual of Light Mode,make sure the Custom color under REAPER Preferences are set correctly,
     or the actual used theme provides the value of 50 for tinttcp inside its rtconfig-file! More Infos: ---------]]
     
     
@@ -160,6 +160,7 @@
   
   -- PREDEFINE VALUES AS LOCAL--
 
+  local script_name = 'Chroma - Coloring Tool'
   local test_item2          
   local Item2               
   local track2              
@@ -258,24 +259,24 @@
 
   -- LOADING SETTINGS --
   
-  if reaper.HasExtState("shiny_colorpalette", "selected_mode") then
-    selected_mode       = tonumber(reaper.GetExtState("shiny_colorpalette", "selected_mode"))
+  if reaper.HasExtState(script_name, "selected_mode") then
+    selected_mode       = tonumber(reaper.GetExtState(script_name, "selected_mode"))
   else selected_mode = 0 end
   
-  if reaper.HasExtState("shiny_colorpalette", "colorspace") then -- REST --
-    colorspace          = tonumber(reaper.GetExtState("shiny_colorpalette", "colorspace"))
+  if reaper.HasExtState(script_name, "colorspace") then -- REST --
+    colorspace          = tonumber(reaper.GetExtState(script_name, "colorspace"))
   else colorspace = 0 end
   
-  if reaper.HasExtState("shiny_colorpalette", "automode_id") then
-    automode_id         = tonumber(reaper.GetExtState("shiny_colorpalette", "automode_id"))
+  if reaper.HasExtState(script_name, "automode_id") then
+    automode_id         = tonumber(reaper.GetExtState(script_name, "automode_id"))
   else automode_id = 1 end
 
-  if reaper.HasExtState("shiny_colorpalette", "saturation") then
-    saturation          = tonumber(reaper.GetExtState("shiny_colorpalette", "saturation"))
+  if reaper.HasExtState(script_name, "saturation") then
+    saturation          = tonumber(reaper.GetExtState(script_name, "saturation"))
   else saturation = 0.8 end
   
-  if reaper.HasExtState("shiny_colorpalette", "custom_palette") then
-    for i in string.gmatch(reaper.GetExtState("shiny_colorpalette", "custom_palette"), "-?%d+,?") do
+  if reaper.HasExtState(script_name, "custom_palette") then
+    for i in string.gmatch(reaper.GetExtState(script_name, "custom_palette"), "-?%d+,?") do
       insert(custom_palette, tonumber(string.match(i, "-?%d+"))) --REST
     end
   else
@@ -284,36 +285,36 @@
     end
   end
   
-  if reaper.HasExtState("shiny_colorpalette", "lightness") then
-    lightness           = tonumber(reaper.GetExtState("shiny_colorpalette", "lightness"))
+  if reaper.HasExtState(script_name, "lightness") then
+    lightness           = tonumber(reaper.GetExtState(script_name, "lightness"))
   else lightness = 0.65 end
   
-  if reaper.HasExtState("shiny_colorpalette", "darkness") then
-    darkness            = tonumber(reaper.GetExtState("shiny_colorpalette", "darkness"))
+  if reaper.HasExtState(script_name, "darkness") then
+    darkness            = tonumber(reaper.GetExtState(script_name, "darkness"))
   else darkness = 0.2 end
   
-  if reaper.HasExtState("shiny_colorpalette", "rgba") then
-    rgba                 = tonumber(reaper.GetExtState("shiny_colorpalette", "rgba"))
+  if reaper.HasExtState(script_name, "rgba") then
+    rgba                 = tonumber(reaper.GetExtState(script_name, "rgba"))
   else rgba = 630132991 end
   
-  if reaper.HasExtState("shiny_colorpalette", "dont_ask") then
-    if reaper.GetExtState("shiny_colorpalette", "dont_ask") == "false" then dont_ask = false end
-    if reaper.GetExtState("shiny_colorpalette", "dont_ask") == "true" then dont_ask = true end
+  if reaper.HasExtState(script_name, "dont_ask") then
+    if reaper.GetExtState(script_name, "dont_ask") == "false" then dont_ask = false end
+    if reaper.GetExtState(script_name, "dont_ask") == "true" then dont_ask = true end
   else dont_ask = false end
   
-  if reaper.HasExtState("shiny_colorpalette", "random_custom") then
-    if reaper.GetExtState("shiny_colorpalette", "random_custom") == "false" then random_custom = false end
-    if reaper.GetExtState("shiny_colorpalette", "random_custom") == "true" then random_custom = true end
+  if reaper.HasExtState(script_name, "random_custom") then
+    if reaper.GetExtState(script_name, "random_custom") == "false" then random_custom = false end
+    if reaper.GetExtState(script_name, "random_custom") == "true" then random_custom = true end
   else random_custom = false end
   
-  if reaper.HasExtState("shiny_colorpalette", "random_main") then
-    if reaper.GetExtState("shiny_colorpalette", "random_main") == "false" then random_main = false end
-    if reaper.GetExtState("shiny_colorpalette", "random_main") == "true" then random_main = true end
+  if reaper.HasExtState(script_name, "random_main") then
+    if reaper.GetExtState(script_name, "random_main") == "false" then random_main = false end
+    if reaper.GetExtState(script_name, "random_main") == "true" then random_main = true end
   else random_main = false end
   
-  if reaper.HasExtState("shiny_colorpalette", "auto_trk") then
-    if reaper.GetExtState("shiny_colorpalette", "auto_trk") == "false" then auto_trk = false end
-    if reaper.GetExtState("shiny_colorpalette", "auto_trk") == "true" then auto_trk = true end
+  if reaper.HasExtState(script_name, "auto_trk") then
+    if reaper.GetExtState(script_name, "auto_trk") == "false" then auto_trk = false end
+    if reaper.GetExtState(script_name, "auto_trk") == "true" then auto_trk = true end
   else auto_trk = false end
   
   
@@ -588,7 +589,7 @@
       local test_item = GetSelectedMediaItem(0, 0)
       if test_item2 ~= test_item or sel_items ~= it_cnt_sw then
       
-        -- set limit of selected items in pt mode --
+        -- set limit of selected items in Light Mode --
         if selected_mode == 1 then
           if sel_items > 30000 then
             sel_items = 30000
@@ -619,7 +620,7 @@
           if selected_mode == 1 then
             itemcolor = GetMediaItemTakeInfo_Value(take,"I_CUSTOMCOLOR")
             if itemcolor == 0 then
-              --get color for highlighting and save infos to table for moving items in pt mode
+              --get color for highlighting and save infos to table for moving items in Light Mode
               itemcolor = GetMediaTrackInfo_Value(itemtrack, "I_CUSTOMCOLOR")
               move_tbl.trk_ip[index] = GetMediaTrackInfo_Value(itemtrack, "IP_TRACKNUMBER")   
               move_tbl.it[index] = item   
@@ -686,7 +687,7 @@
   
   
   
-  -- COLOR ITEMS TO TRACK COLOR IN PT-MODE  --
+  -- COLOR ITEMS TO TRACK COLOR IN Light MODE  --
   
   local function automatic_item_coloring()
     
@@ -735,7 +736,7 @@
   
   -- VODKA --
   
-  -- COLOR TAKES IN PT_MODE --
+  -- COLOR TAKES IN Light MODE --
   
   local function reselect_take()
   
@@ -828,7 +829,7 @@
           for j = 0, #sel_tbl.tr -1 do
             SetMediaTrackInfo_Value(sel_tbl.tr[j+1],"I_CUSTOMCOLOR", tbl_tr[clr_key])
             if selected_mode == 1 then
-              Color_items_to_track_color_in_pt_mode(sel_tbl.tr[j+1], tbl_it[clr_key])
+              Color_items_to_track_color_in_light_mode(sel_tbl.tr[j+1], tbl_it[clr_key])
             else
               SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0)
               SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", 0)
@@ -844,7 +845,7 @@
         local track = GetSelectedTrack(0,i)
         SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", tbl_tr[clr_key])
         if selected_mode == 1 then
-          Color_items_to_track_color_in_pt_mode(track, tbl_it[clr_key]) 
+          Color_items_to_track_color_in_light_mode(track, tbl_it[clr_key]) 
         end
         if ImGui_IsKeyDown(ctx, ImGui_Mod_Shortcut()) then
           local cnt_items = reaper.CountTrackMediaItems(track)
@@ -895,7 +896,7 @@
           if ImGui_IsKeyDown(ctx, ImGui_Mod_Shortcut()) then
             for j = 0, #sel_tbl.tr -1 do
               if selected_mode == 1 then
-                Color_items_to_track_color_in_pt_mode(sel_tbl.tr[j+1], background_color) 
+                Color_items_to_track_color_in_light_mode(sel_tbl.tr[j+1], background_color) 
                 SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0)
               else
                 SetMediaTrackInfo_Value(sel_tbl.tr[j+1],"I_CUSTOMCOLOR", color)
@@ -971,7 +972,7 @@
           local track = GetSelectedTrack(0, i)
           SetTrackColor(track, ColorToNative(value_r, value_g, value_b))
           if selected_mode == 1 then
-            Color_items_to_track_color_in_pt_mode(track, Background_color_R_G_B(value_r, value_g, value_b))
+            Color_items_to_track_color_in_light_mode(track, Background_color_R_G_B(value_r, value_g, value_b))
             it_cnt_sw= nil   -- to get highlighting
           end
         end
@@ -979,7 +980,7 @@
         col_tbl = nil                 
       end
     else
-      reaper.MB( "Please select at least 3 tracks", "Cannot create gradient colors", 0 )
+      reaper.MB( "Please select at least 3 tracks", "Can not create gradient colors", 0 )
     end
   end
   
@@ -1022,7 +1023,7 @@
       for i = 1, #child_tracks do
         SetTrackColor(child_tracks[i], trackcolor)
         if selected_mode == 1 then
-          Color_items_to_track_color_in_pt_mode(child_tracks[i], col_tbl.it[ip])
+          Color_items_to_track_color_in_light_mode(child_tracks[i], col_tbl.it[ip])
         end
       end
     end
@@ -1032,7 +1033,7 @@
   
 
   
-  -- PREPARE BACKGROUND COLOR FOR PT-MODE RGBA (DOUBLE4) --
+  -- PREPARE BACKGROUND COLOR FOR LIGHT MODE RGBA (DOUBLE4) --
   
   function Background_color_rgba(color)
   
@@ -1047,7 +1048,7 @@
   
   
   
-  -- PREPARE BACKGROUND COLOR FOR PT-MODE INTEGER --
+  -- PREPARE BACKGROUND COLOR FOR LIGHT MODE INTEGER --
   
   function background_color_native(color)
     
@@ -1062,7 +1063,7 @@
   
   
   
-   -- PREPARE BACKGROUND COLOR FOR PT-MODE R, G, B --
+   -- PREPARE BACKGROUND COLOR FOR LIGHT MODE R, G, B --
   
   function Background_color_R_G_B(r,g,b)
   
@@ -1076,7 +1077,7 @@
   
   
 
-  function Color_items_to_track_color_in_pt_mode(track, background_color) 
+  function Color_items_to_track_color_in_light_mode(track, background_color) 
   
     for j=0, GetTrackNumMediaItems(track, 0) -1 do
       local trackitem = GetTrackMediaItem(track, j)
@@ -1129,7 +1130,7 @@
           local track = GetSelectedTrack(0, i)
           SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR",  pal_tbl.tr[value])
           if selected_mode == 1 then
-            Color_items_to_track_color_in_pt_mode(track, pal_tbl.it[value])
+            Color_items_to_track_color_in_light_mode(track, pal_tbl.it[value])
           end
         end
       end
@@ -1141,7 +1142,7 @@
         if random_main then value = numbers[i%120+1] else value = i%120+1 end
         SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", pal_tbl.tr[value])
         if selected_mode == 1 then
-          Color_items_to_track_color_in_pt_mode(track, pal_tbl.it[value])
+          Color_items_to_track_color_in_light_mode(track, pal_tbl.it[value])
         end
       end  
     end
@@ -1170,7 +1171,7 @@
             if random_custom then value = numbers[i%24+1] else value = (i+r-1)%24+1 end
             SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", cust_tbl.tr[value])
             if selected_mode == 1 then
-              Color_items_to_track_color_in_pt_mode(track, cust_tbl.it[value])
+              Color_items_to_track_color_in_light_mode(track, cust_tbl.it[value])
             end
           end
         end
@@ -1181,7 +1182,7 @@
           if random_custom then value = numbers[i%24+1] else value = i%24+1 end
           SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", cust_tbl.tr[value])
           if selected_mode == 1 then
-            Color_items_to_track_color_in_pt_mode(track, cust_tbl.it[value])
+            Color_items_to_track_color_in_light_mode(track, cust_tbl.it[value])
           end
         end  
       end
@@ -1460,29 +1461,29 @@
       -- MODE SELECTION --
       
       rv, selected_mode = ImGui_RadioButtonEx(ctx, 'Normal Mode', selected_mode, 0); ImGui_SameLine(ctx, 0 , 25)
-      if ImGui_RadioButtonEx(ctx, 'PT mode (experimental)', selected_mode, 1) then
+      if ImGui_RadioButtonEx(ctx, 'Light Mode (experimental)', selected_mode, 1) then
         if not dont_ask then
-          ImGui_OpenPopup(ctx, 'PT mode')
+          ImGui_OpenPopup(ctx, 'Light Mode')
         else selected_mode = 1
         end
       end
       
       
 
-      -- PT MODE POPUP --
+      -- LIGHT MODE POPUP --
       
       -- Always center this window when appearing
       local center = {ImGui_Viewport_GetCenter(ImGui_GetWindowViewport(ctx))}
       ImGui_SetNextWindowPos(ctx, center[1], center[2], reaper.ImGui_Cond_Appearing(), 0.5, 0.5)
-      if ImGui_BeginPopupModal(ctx, 'PT mode', nil, reaper.ImGui_WindowFlags_AlwaysAutoResize()) then
-        ImGui_Text(ctx, 'To use the full potentual of PT-Mode,\nmake sure the Custom color under REAPER Preferences are set correctly,\nor the actual used theme provides the value of 50 for tinttcp inside its rtconfig-file!\n\nMore Infos:')
+      if ImGui_BeginPopupModal(ctx, 'Light Mode', nil, reaper.ImGui_WindowFlags_AlwaysAutoResize()) then
+        ImGui_Text(ctx, 'To use the full potentual of Light Mode,\nmake sure Custom colors settings under "REAPER Preferences/ Audio peak/wavform appearance" \nare set correctly, or the actual used theme provides the value of 50 for tinttcp inside its rtconfig-file!\n\nMore Infos:')
         if ImGui_Button(ctx, 'Open PDF in browser', 200, 20) then
           reaper.CF_ShellExecute('https://drive.google.com/file/d/1cUcvToeOLldaMxPS-RE744aSMtA1PJ2c/view?usp=sharing')
         end
         
         ImGui_Separator(ctx)
         ImGui_AlignTextToFramePadding(ctx)
-        ImGui_Text(ctx, 'Continue with PT mode?')
+        ImGui_Text(ctx, 'Continue with Light Mode?')
          
         ImGui_SameLine(ctx, 0, 20)
        
@@ -1623,7 +1624,7 @@
     ImGui_SameLine(ctx, 0, element_position)
     
     local text
-    if selected_mode == 1 then text = 'PT mode:  ' else text = '' end
+    if selected_mode == 1 then text = 'Light Mode:  ' else text = '' end
     ImGui_Text(ctx, text)
     ImGui_SameLine(ctx, 0, 0)
     if selected_mode == 1 then
@@ -1951,18 +1952,18 @@
   
   local function save_current_settings()
   
-    reaper.SetExtState("shiny_colorpalette" ,'selected_mode',   tostring(selected_mode),true)
-    reaper.SetExtState("shiny_colorpalette" ,'colorspace',      tostring(colorspace),true)
-    reaper.SetExtState("shiny_colorpalette" ,'dont_ask',        tostring(dont_ask),true)
-    reaper.SetExtState("shiny_colorpalette" ,'automode_id',     tostring(automode_id),true)
-    reaper.SetExtState("shiny_colorpalette" ,'saturation',      tostring(saturation),true)
-    reaper.SetExtState("shiny_colorpalette" ,'lightness',       tostring(lightness),true)
-    reaper.SetExtState("shiny_colorpalette" ,'darkness',        tostring(darkness),true)
-    reaper.SetExtState("shiny_colorpalette" ,'rgba',            tostring(rgba),true)
-    reaper.SetExtState("shiny_colorpalette" ,'custom_palette',  table.concat(custom_palette,","),true)
-    reaper.SetExtState("shiny_colorpalette" ,'random_custom',   tostring(random_custom),true)
-    reaper.SetExtState("shiny_colorpalette" ,'random_main',     tostring(random_main),true)
-    reaper.SetExtState("shiny_colorpalette" ,'auto_trk',        tostring(auto_trk),true)
+    reaper.SetExtState(script_name ,'selected_mode',   tostring(selected_mode),true)
+    reaper.SetExtState(script_name ,'colorspace',      tostring(colorspace),true)
+    reaper.SetExtState(script_name ,'dont_ask',        tostring(dont_ask),true)
+    reaper.SetExtState(script_name ,'automode_id',     tostring(automode_id),true)
+    reaper.SetExtState(script_name ,'saturation',      tostring(saturation),true)
+    reaper.SetExtState(script_name ,'lightness',       tostring(lightness),true)
+    reaper.SetExtState(script_name ,'darkness',        tostring(darkness),true)
+    reaper.SetExtState(script_name ,'rgba',            tostring(rgba),true)
+    reaper.SetExtState(script_name ,'custom_palette',  table.concat(custom_palette,","),true)
+    reaper.SetExtState(script_name ,'random_custom',   tostring(random_custom),true)
+    reaper.SetExtState(script_name ,'random_main',     tostring(random_main),true)
+    reaper.SetExtState(script_name ,'auto_trk',        tostring(auto_trk),true)
     
   end
   
