@@ -1,14 +1,18 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.54
+-- @version 0.55
   
   
   
 -- @discription: 
 
---[[Light Mode:
-    To use the full potentual of Light Mode,make sure the Custom color under REAPER Preferences are set correctly,
-    or the actual used theme provides the value of 50 for tinttcp inside its rtconfig-file! More Infos: ---------]]
+--[[
+    
+    ShinyColors Mode:
+    To use the full potentual of ShinyColors Mode,make sure the Custom color under REAPER Preferences are set correctly,
+    or the actual used theme provides the value of 50 for tinttcp inside its rtconfig-file! More Infos: ---------
+    
+    ]]
     
     
   
@@ -589,7 +593,7 @@
       local test_item = GetSelectedMediaItem(0, 0)
       if test_item2 ~= test_item or sel_items ~= it_cnt_sw then
       
-        -- set limit of selected items in Light Mode --
+        -- set limit of selected items in ShinyColors Mode --
         if selected_mode == 1 then
           if sel_items > 30000 then
             sel_items = 30000
@@ -603,13 +607,11 @@
         items_mode = 1
         local index = 0
         local tr_index = 0
-        local take --Vodka, needed
-        local item -- Vodka, make it locak here
         for i=0, sel_items -1 do
           index = index+1
-          item = GetSelectedMediaItem(0,i)
+          local item = GetSelectedMediaItem(0,i) --VODKA
           sel_tbl.it[index] = item
-          take = GetActiveTake(item) -- Vodka
+          local take = GetActiveTake(item) --VODKA
           sel_tbl.tke[index] = take
           local itemtrack = GetMediaItemTrack(item)
           if itemtrack ~= itemtrack2 then
@@ -620,7 +622,7 @@
           if selected_mode == 1 then
             itemcolor = GetMediaItemTakeInfo_Value(take,"I_CUSTOMCOLOR")
             if itemcolor == 0 then
-              --get color for highlighting and save infos to table for moving items in Light Mode
+              --get color for highlighting and save infos to table for moving items in ShinyColors Mode
               itemcolor = GetMediaTrackInfo_Value(itemtrack, "I_CUSTOMCOLOR")
               move_tbl.trk_ip[index] = GetMediaTrackInfo_Value(itemtrack, "IP_TRACKNUMBER")   
               move_tbl.it[index] = item   
@@ -687,7 +689,7 @@
   
   
   
-  -- COLOR ITEMS TO TRACK COLOR IN Light MODE  --
+  -- COLOR ITEMS TO TRACK COLOR IN SHINYCOLORS MODE  --
   
   local function automatic_item_coloring()
     
@@ -734,35 +736,27 @@
   
   
   
-  -- VODKA --
-  
-  -- COLOR TAKES IN Light MODE --
+  -- COLOR TAKES IN SHINYCOLORS MODE --
   
   local function reselect_take()
   
-    if selected_mode == 1 then
-      if (Undo_CanUndo2(0)=='Change active take') then
-        cur_state5 = GetProjectStateChangeCount(0) 
-        if not cur_state6 then cur_state6 = 0 end
-        if cur_state5 > cur_state6 then
-          cur_state6 = cur_state5+1
-          test_item2 = nil
-          it_cnt_sw = nil 
-        else
-          if cur_state5+1 == cur_state6 then
-            for i=0, reaper.CountSelectedMediaItems(0) -1 do
-              back = Background_color_rgba(sel_color[i+1])
-              SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", back) 
-            end
-          end
-          cur_state6 = cur_state6 -1
+    if selected_mode == 1 and Undo_CanUndo2(0)=='Change active take' then --VODKA
+      cur_state5 = GetProjectStateChangeCount(0) 
+      --if not cur_state6 then cur_state6 = 0 end
+      cur_state6 = cur_state6 or 0--VODKA
+      if cur_state5 > cur_state6 then
+        cur_state6 = cur_state5+1
+        test_item2, it_cnt_sw = nil, nil --VODKA
+      elseif cur_state5+1 == cur_state6 then --VODKA
+        for i=0, CountSelectedMediaItems(0) -1 do --VODKA
+          local back = Background_color_rgba(sel_color[i+1]) --VODKA
+          SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", back) 
         end
-      end  
+        cur_state6 = cur_state6 -1
+      end
     end
+
   end
-  
-  
-  -- END --
       
       
    
@@ -829,7 +823,7 @@
           for j = 0, #sel_tbl.tr -1 do
             SetMediaTrackInfo_Value(sel_tbl.tr[j+1],"I_CUSTOMCOLOR", tbl_tr[clr_key])
             if selected_mode == 1 then
-              Color_items_to_track_color_in_light_mode(sel_tbl.tr[j+1], tbl_it[clr_key])
+              Color_items_to_track_color_in_shiny_mode(sel_tbl.tr[j+1], tbl_it[clr_key])
             else
               SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0)
               SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", 0)
@@ -845,7 +839,7 @@
         local track = GetSelectedTrack(0,i)
         SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", tbl_tr[clr_key])
         if selected_mode == 1 then
-          Color_items_to_track_color_in_light_mode(track, tbl_it[clr_key]) 
+          Color_items_to_track_color_in_shiny_mode(track, tbl_it[clr_key]) 
         end
         if ImGui_IsKeyDown(ctx, ImGui_Mod_Shortcut()) then
           local cnt_items = reaper.CountTrackMediaItems(track)
@@ -896,7 +890,7 @@
           if ImGui_IsKeyDown(ctx, ImGui_Mod_Shortcut()) then
             for j = 0, #sel_tbl.tr -1 do
               if selected_mode == 1 then
-                Color_items_to_track_color_in_light_mode(sel_tbl.tr[j+1], background_color) 
+                Color_items_to_track_color_in_shiny_mode(sel_tbl.tr[j+1], background_color) 
                 SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0)
               else
                 SetMediaTrackInfo_Value(sel_tbl.tr[j+1],"I_CUSTOMCOLOR", color)
@@ -972,7 +966,7 @@
           local track = GetSelectedTrack(0, i)
           SetTrackColor(track, ColorToNative(value_r, value_g, value_b))
           if selected_mode == 1 then
-            Color_items_to_track_color_in_light_mode(track, Background_color_R_G_B(value_r, value_g, value_b))
+            Color_items_to_track_color_in_shiny_mode(track, Background_color_R_G_B(value_r, value_g, value_b))
             it_cnt_sw= nil   -- to get highlighting
           end
         end
@@ -1023,7 +1017,7 @@
       for i = 1, #child_tracks do
         SetTrackColor(child_tracks[i], trackcolor)
         if selected_mode == 1 then
-          Color_items_to_track_color_in_light_mode(child_tracks[i], col_tbl.it[ip])
+          Color_items_to_track_color_in_shiny_mode(child_tracks[i], col_tbl.it[ip])
         end
       end
     end
@@ -1033,7 +1027,7 @@
   
 
   
-  -- PREPARE BACKGROUND COLOR FOR LIGHT MODE RGBA (DOUBLE4) --
+  -- PREPARE BACKGROUND COLOR FOR SHINYCOLORS MODE RGBA (DOUBLE4) --
   
   function Background_color_rgba(color)
   
@@ -1048,7 +1042,7 @@
   
   
   
-  -- PREPARE BACKGROUND COLOR FOR LIGHT MODE INTEGER --
+  -- PREPARE BACKGROUND COLOR FOR SHINYCOLORS MODE INTEGER --
   
   function background_color_native(color)
     
@@ -1063,7 +1057,7 @@
   
   
   
-   -- PREPARE BACKGROUND COLOR FOR LIGHT MODE R, G, B --
+   -- PREPARE BACKGROUND COLOR FOR SHINYCOLORS MODE R, G, B --
   
   function Background_color_R_G_B(r,g,b)
   
@@ -1077,7 +1071,7 @@
   
   
 
-  function Color_items_to_track_color_in_light_mode(track, background_color) 
+  function Color_items_to_track_color_in_shiny_mode(track, background_color) 
   
     for j=0, GetTrackNumMediaItems(track, 0) -1 do
       local trackitem = GetTrackMediaItem(track, j)
@@ -1130,7 +1124,7 @@
           local track = GetSelectedTrack(0, i)
           SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR",  pal_tbl.tr[value])
           if selected_mode == 1 then
-            Color_items_to_track_color_in_light_mode(track, pal_tbl.it[value])
+            Color_items_to_track_color_in_shiny_mode(track, pal_tbl.it[value])
           end
         end
       end
@@ -1142,7 +1136,7 @@
         if random_main then value = numbers[i%120+1] else value = i%120+1 end
         SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", pal_tbl.tr[value])
         if selected_mode == 1 then
-          Color_items_to_track_color_in_light_mode(track, pal_tbl.it[value])
+          Color_items_to_track_color_in_shiny_mode(track, pal_tbl.it[value])
         end
       end  
     end
@@ -1171,7 +1165,7 @@
             if random_custom then value = numbers[i%24+1] else value = (i+r-1)%24+1 end
             SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", cust_tbl.tr[value])
             if selected_mode == 1 then
-              Color_items_to_track_color_in_light_mode(track, cust_tbl.it[value])
+              Color_items_to_track_color_in_shiny_mode(track, cust_tbl.it[value])
             end
           end
         end
@@ -1182,7 +1176,7 @@
           if random_custom then value = numbers[i%24+1] else value = i%24+1 end
           SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", cust_tbl.tr[value])
           if selected_mode == 1 then
-            Color_items_to_track_color_in_light_mode(track, cust_tbl.it[value])
+            Color_items_to_track_color_in_shiny_mode(track, cust_tbl.it[value])
           end
         end  
       end
@@ -1234,8 +1228,9 @@
       track_number2, sel_tracks2, col_tbl = track_number, nil, nil
     elseif track_number2 > track_number then
       track_number2 = track_number
+      col_tbl = nil 
     end
-    clr_tbl = nil -- Vodka --
+    
     Undo_EndBlock2(0, "Automatically color new tracks", 1)
   end
   
@@ -1448,42 +1443,39 @@
      
       
       
-      -- VODKA --
-      
       -- CHECKBOX FOR AUTO TRACK COLORING --
       
-      ImGui_Dummy(ctx, 0, 10)
-      rv, auto_trk = ImGui_Checkbox(ctx, "autocolor new tracks", auto_trk)
+      ImGui_Dummy(ctx, 0, 0)
+      rv, auto_trk = ImGui_Checkbox(ctx, "Autocolor new tracks", auto_trk)
 
-      -- END -- 
 
       
       -- MODE SELECTION --
       
       rv, selected_mode = ImGui_RadioButtonEx(ctx, 'Normal Mode', selected_mode, 0); ImGui_SameLine(ctx, 0 , 25)
-      if ImGui_RadioButtonEx(ctx, 'Light Mode (experimental)', selected_mode, 1) then
+      if ImGui_RadioButtonEx(ctx, 'ShinyColors Mode (experimental)', selected_mode, 1) then
         if not dont_ask then
-          ImGui_OpenPopup(ctx, 'Light Mode')
+          ImGui_OpenPopup(ctx, 'ShinyColors Mode')
         else selected_mode = 1
         end
       end
       
       
 
-      -- LIGHT MODE POPUP --
+      -- SHINYCOLORS MODE POPUP --
       
       -- Always center this window when appearing
       local center = {ImGui_Viewport_GetCenter(ImGui_GetWindowViewport(ctx))}
       ImGui_SetNextWindowPos(ctx, center[1], center[2], reaper.ImGui_Cond_Appearing(), 0.5, 0.5)
-      if ImGui_BeginPopupModal(ctx, 'Light Mode', nil, reaper.ImGui_WindowFlags_AlwaysAutoResize()) then
-        ImGui_Text(ctx, 'To use the full potentual of Light Mode,\nmake sure Custom colors settings under "REAPER Preferences/ Audio peak/wavform appearance" \nare set correctly, or the actual used theme provides the value of 50 for tinttcp inside its rtconfig-file!\n\nMore Infos:')
+      if ImGui_BeginPopupModal(ctx, 'ShinyColors Mode', nil, reaper.ImGui_WindowFlags_AlwaysAutoResize()) then
+        ImGui_Text(ctx, 'To use the full potentual of ShinyColors Mode,\nmake sure Custom colors settings under "REAPER Preferences/ Audio peak/wavform appearance" \nare set correctly, or the actual used theme provides the value of 50 for tinttcp inside its rtconfig-file!\n\nMore Infos:')
         if ImGui_Button(ctx, 'Open PDF in browser', 200, 20) then
           reaper.CF_ShellExecute('https://drive.google.com/file/d/1cUcvToeOLldaMxPS-RE744aSMtA1PJ2c/view?usp=sharing')
         end
         
         ImGui_Separator(ctx)
         ImGui_AlignTextToFramePadding(ctx)
-        ImGui_Text(ctx, 'Continue with Light Mode?')
+        ImGui_Text(ctx, 'Continue with ShinyColors Mode?')
          
         ImGui_SameLine(ctx, 0, 20)
        
@@ -1616,7 +1608,7 @@
     local element_position
     
     if selected_mode == 1 then
-      if w-258 < 0 then element_position = 0 else element_position = w-352 end 
+      if w-258 < 0 then element_position = 0 else element_position = w-413 end 
     else
       if w-258 < 0 then element_position = 0 else element_position = w-258 end 
     end
@@ -1624,7 +1616,7 @@
     ImGui_SameLine(ctx, 0, element_position)
     
     local text
-    if selected_mode == 1 then text = 'Light Mode:  ' else text = '' end
+    if selected_mode == 1 then text = 'ShinyColors Mode:  ' else text = '' end
     ImGui_Text(ctx, text)
     ImGui_SameLine(ctx, 0, 0)
     if selected_mode == 1 then
@@ -1633,6 +1625,7 @@
         
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 12) var=var+1 --custom palette upper space
     ImGui_SameLine(ctx, 0, 10)
+    
     
     
     -- SELECTION TOOL UPPER RIGHT CORNER --
@@ -2018,6 +2011,22 @@
         cust_tbl = nil
       end
       
+      --vitalker check for project tap change --
+      --THIS PART IS WHERE YOU DECLARE YOUR SCRIPT VARIABLES, SO IT CAN BE IN -- PREDEFINE VALUES AS LOCAL-- PART
+      --[[
+      proj = {}
+      proj.tab, proj.fn = reaper.EnumProjects(-1)
+      proj.name = reaper.GetProjectName(proj.tab)
+      local last_st = GetProjectStateChangeCount(0)
+      
+      --THE LOOP PART
+      proj_tab, projfn = reaper.EnumProjects(-1)
+      proj_name = reaper.GetProjectName(proj_tab)
+      if proj_tab ~= proj.tab or projfn ~= proj.fn or proj_name ~= proj.name then
+        proj.tab, proj.fn, proj.name = proj_tab, projfn, proj_name
+        last_st = GetProjectStateChangeCount(0)
+      end
+      ]]
       -- END --
      
     else
