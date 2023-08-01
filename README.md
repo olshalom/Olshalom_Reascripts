@@ -1,4 +1,4 @@
-# Reascripts for REAPER 
+# Homebase for REAPER scripts
 
 by olshalom and others
 
