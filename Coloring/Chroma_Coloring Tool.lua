@@ -1470,7 +1470,7 @@
       if ImGui_BeginPopupModal(ctx, 'ShinyColors Mode', nil, reaper.ImGui_WindowFlags_AlwaysAutoResize()) then
         ImGui_Text(ctx, 'To use the full potentual of ShinyColors Mode,\nmake sure Custom colors settings under "REAPER Preferences/ Audio peak/wavform appearance" \nare set correctly, or the actual used theme provides the value of 50 for tinttcp inside its rtconfig-file!\n\nMore Infos:')
         if ImGui_Button(ctx, 'Open PDF in browser', 200, 20) then
-          reaper.CF_ShellExecute('https://drive.google.com/file/d/1cUcvToeOLldaMxPS-RE744aSMtA1PJ2c/view?usp=sharing')
+          reaper.CF_ShellExecute('https://drive.google.com/file/d/1fnRfPrMjsfWTdJtjSAny39dWvJTOyni1/view?usp=share_link')
         end
         
         ImGui_Separator(ctx)
