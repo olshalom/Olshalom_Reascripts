@@ -1,6 +1,6 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.55
+-- @version 0.56
   
   
   
@@ -51,6 +51,8 @@
   local Undo_EndBlock2 = reaper.Undo_EndBlock2
   local Undo_BeginBlock2 = reaper.Undo_BeginBlock2
   local GetDisplayedMediaItemColor = reaper.GetDisplayedMediaItemColor
+  local EnumProjects = reaper.EnumProjects
+  
   
   
   
@@ -145,6 +147,9 @@
   local ImGui_Col_ButtonActive = reaper.ImGui_Col_ButtonActive
   local ImGui_PopFont = reaper.ImGui_PopFont
   local ImGui_GetWindowPos = reaper.ImGui_GetWindowPos
+  local ImGui_SmallButton = reaper.ImGui_SmallButton
+  local ImGui_Col_FrameBgHovered = reaper.ImGui_Col_FrameBgHovered
+  local ImGui_Begin = reaper.ImGui_Begin
   
   
   
@@ -191,6 +196,9 @@
   local rv
   local old_project
   local widgetscolorsrgba
+  local track_number2
+  local auto_trk
+
 
 
   -- CONSOLE OUTPUT --
@@ -609,9 +617,9 @@
         local tr_index = 0
         for i=0, sel_items -1 do
           index = index+1
-          local item = GetSelectedMediaItem(0,i) --VODKA
+          local item = GetSelectedMediaItem(0,i) 
           sel_tbl.it[index] = item
-          local take = GetActiveTake(item) --VODKA
+          local take = GetActiveTake(item)
           sel_tbl.tke[index] = take
           local itemtrack = GetMediaItemTrack(item)
           if itemtrack ~= itemtrack2 then
@@ -693,44 +701,42 @@
   
   local function automatic_item_coloring()
     
-    if selected_mode == 1 then
-      local local_ip
-      local Item3 = GetSelectedMediaItem(0, 0)
-      local itm_cnt = CountSelectedMediaItems(0)
-      if Item3 and itm_cnt < 16001 then
-        local track1 = GetMediaItemTrack(Item3)
-        if Item2 == Item3 and track2 ~= track1 then
-          for x=1, #move_tbl.it do
-            if move_tbl.trk_ip[x] == move_tbl.trk_ip[x-1] then
-              SetMediaItemInfo_Value(move_tbl.it[x],"I_CUSTOMCOLOR", col_tbl.it[local_ip])
-            else
-              local_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(move_tbl.it[x]), "IP_TRACKNUMBER")
-              SetMediaItemInfo_Value(move_tbl.it[x],"I_CUSTOMCOLOR", col_tbl.it[local_ip])
-            end
+    local local_ip
+    local Item3 = GetSelectedMediaItem(0, 0)
+    local itm_cnt = CountSelectedMediaItems(0)
+    if Item3 and itm_cnt < 16001 then
+      local track1 = GetMediaItemTrack(Item3)
+      if Item2 == Item3 and track2 ~= track1 then
+        for x=1, #move_tbl.it do
+          if move_tbl.trk_ip[x] == move_tbl.trk_ip[x-1] then
+            SetMediaItemInfo_Value(move_tbl.it[x],"I_CUSTOMCOLOR", col_tbl.it[local_ip])
+          else
+            local_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(move_tbl.it[x]), "IP_TRACKNUMBER")
+            SetMediaItemInfo_Value(move_tbl.it[x],"I_CUSTOMCOLOR", col_tbl.it[local_ip])
           end
-          it_cnt_sw= nil 
-          cur_state3 = cur_state2
         end
-        Item2 = Item3             -- for comparing and stop in defer
-        track2 = track1           -- for comparing and stop in defer
+        it_cnt_sw= nil 
+        cur_state3 = cur_state2
+      end
+      Item2 = Item3             -- for comparing and stop in defer
+      track2 = track1           -- for comparing and stop in defer
         
-      elseif Item3 and itm_cnt > 16000 then   -- change colors after undopoint
-        local local_ip
-        local cur_state2 = GetProjectStateChangeCount(0)
-        if not cur_state3 then local cur_state3=cur_state2 end
-        if (Undo_CanUndo2(0)=='Move media items')
-              and cur_state2 ~= cur_state3 then
-          for x=1, #move_tbl.it do
-            if move_tbl.trk_ip[x] == move_tbl.trk_ip[x-1] then
-              SetMediaItemInfo_Value(move_tbl.it[x] ,"I_CUSTOMCOLOR", col_tbl.it[local_ip])
-            else
-              local_ip = GetMediaTrackInfo_Value(GetMediaItem_Track(move_tbl.it[x]), "IP_TRACKNUMBER")
-              SetMediaItemInfo_Value(move_tbl.it[x] ,"I_CUSTOMCOLOR", col_tbl.it[local_ip])
-            end
+    elseif Item3 and itm_cnt > 16000 then   -- change colors after undopoint
+      local local_ip
+      local cur_state2 = GetProjectStateChangeCount(0)
+      if not cur_state3 then local cur_state3=cur_state2 end
+      if (Undo_CanUndo2(0)=='Move media items')
+            and cur_state2 ~= cur_state3 then
+        for x=1, #move_tbl.it do
+          if move_tbl.trk_ip[x] == move_tbl.trk_ip[x-1] then
+            SetMediaItemInfo_Value(move_tbl.it[x] ,"I_CUSTOMCOLOR", col_tbl.it[local_ip])
+          else
+            local_ip = GetMediaTrackInfo_Value(GetMediaItem_Track(move_tbl.it[x]), "IP_TRACKNUMBER")              
+            SetMediaItemInfo_Value(move_tbl.it[x] ,"I_CUSTOMCOLOR", col_tbl.it[local_ip])
           end
         end
-      end 
-    end
+      end
+    end 
     UpdateArrange()
   end
   
@@ -740,22 +746,20 @@
   
   local function reselect_take()
   
-    if selected_mode == 1 and Undo_CanUndo2(0)=='Change active take' then --VODKA
+    if selected_mode == 1 and Undo_CanUndo2(0)=='Change active take' then 
       cur_state5 = GetProjectStateChangeCount(0) 
-      --if not cur_state6 then cur_state6 = 0 end
-      cur_state6 = cur_state6 or 0--VODKA
+      cur_state6 = cur_state6 or 0
       if cur_state5 > cur_state6 then
         cur_state6 = cur_state5+1
-        test_item2, it_cnt_sw = nil, nil --VODKA
-      elseif cur_state5+1 == cur_state6 then --VODKA
-        for i=0, CountSelectedMediaItems(0) -1 do --VODKA
-          local back = Background_color_rgba(sel_color[i+1]) --VODKA
+        test_item2, it_cnt_sw = nil, nil 
+      elseif cur_state5+1 == cur_state6 then 
+        for i=0, CountSelectedMediaItems(0) -1 do 
+          local back = Background_color_rgba(sel_color[i+1]) 
           SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", back) 
         end
         cur_state6 = cur_state6 -1
       end
     end
-
   end
       
       
@@ -766,8 +770,7 @@
     if ((Undo_CanUndo2(0)=='Insert media items'
         or Undo_CanUndo2(0)=='Recorded media')
           and (not cur_state4 or cur_state4<init_state)) 
-            and automode_id == 1 
-              and selected_mode == 1 then
+            and automode_id == 1 then
       cur_state4 = GetProjectStateChangeCount(0)
       for i=0, CountSelectedMediaItems(0) -1 do
         local item = GetSelectedMediaItem(0,i)
@@ -842,7 +845,7 @@
           Color_items_to_track_color_in_shiny_mode(track, tbl_it[clr_key]) 
         end
         if ImGui_IsKeyDown(ctx, ImGui_Mod_Shortcut()) then
-          local cnt_items = reaper.CountTrackMediaItems(track)
+          local cnt_items = CountTrackMediaItems(track)
           if cnt_items > 0 then
             for i = 0, cnt_items -1 do
               local new_item = GetTrackMediaItem( track, i )
@@ -916,7 +919,7 @@
             end
           end
           if ImGui_IsKeyDown(ctx, ImGui_Mod_Shortcut()) then
-            local cnt_items = reaper.CountTrackMediaItems(track)
+            local cnt_items = CountTrackMediaItems(track)
             if cnt_items > 0 then
               for i = 0, cnt_items -1 do
                 local new_item =  GetTrackMediaItem( track, i )
@@ -931,8 +934,7 @@
             end
           end
         end
-        sel_tracks2, col_tbl = nil, nil     -- to get highlighting
-        --col_tbl = nil           -- regenerate track_table
+        sel_tracks2, col_tbl = nil, nil     
       end
       Undo_EndBlock2(0, "Apply palette color", 1+4) 
     end
@@ -1115,7 +1117,7 @@
     if not first_ip then return end 
     local first_color = (col_tbl.tr[first_ip])
     color_state = 0
-    reaper.Undo_BeginBlock2(0)
+    Undo_BeginBlock2(0)
     for p=1, #main_palette do
       if first_color==main_palette[p] then
         color_state = 1
@@ -1156,7 +1158,7 @@
       local first_ip = GetMediaTrackInfo_Value(GetSelectedTrack(0, 0), "IP_TRACKNUMBER")
       local first_color = (col_tbl.tr[first_ip])
       color_state = 0
-      reaper.Undo_BeginBlock2(0)
+      Undo_BeginBlock2(0)
       for r=1, #custom_palette do
         if first_color==custom_palette[r] then
           color_state = 1
@@ -1182,8 +1184,6 @@
       end
       Undo_EndBlock2(0, "Color multiple tracks to custom palette", 1+4)
       col_tbl, sel_tracks2, it_cnt_sw = nil, nil, nil                 
-      --sel_tracks2 = nil   -- to get highlighting
-      --it_cnt_sw= nil
     end
   end
 
@@ -1198,10 +1198,10 @@
     local saved_tr_ip
     local track_number = CountTracks(0)
     local new_track = GetSelectedTrack(0, 0)
-    local state = reaper.GetProjectStateChangeCount(0)
-    if not track_number2 then track_number2 = 0 end
+    local state = GetProjectStateChangeCount(0)
+    if not track_number2 then track_number2 = track_number end
     if track_number2 < track_number and new_track then 
-      reaper.Undo_BeginBlock2(0)
+      Undo_BeginBlock2(0)
       local found = false 
       if stored_val and state2 == state then
         SetMediaTrackInfo_Value(new_track,"I_CUSTOMCOLOR", pal_tbl.tr[stored_val%120+1])
@@ -1230,7 +1230,6 @@
       track_number2 = track_number
       col_tbl = nil 
     end
-    
     Undo_EndBlock2(0, "Automatically color new tracks", 1)
   end
   
@@ -1246,7 +1245,7 @@
     ImGui_PushStyleColor(ctx, ImGui_Col_ButtonHovered(), HSV(h, s, v, a/2)) n=n+1
     ImGui_PushStyleColor(ctx, ImGui_Col_ButtonActive(), HSV(h, s, v, a)) n=n+1
     if not small then state = ImGui_Button(ctx, name, size_w, size_h)
-    else state = reaper.ImGui_SmallButton(ctx, name) end
+    else state = ImGui_SmallButton(ctx, name) end
     ImGui_PopStyleColor(ctx, n)
   
     local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
@@ -1349,10 +1348,10 @@
   
   
   function getProjectTabIndex()
-    local i, project = 0, reaper.EnumProjects(-1, '')
+    local i, project = 0, EnumProjects(-1, '')
     
     while true do
-      if reaper.EnumProjects(i, '') == project then
+      if EnumProjects(i, '') == project then
         return i
       else
        i = i + 1
@@ -1403,12 +1402,10 @@
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 16); var=var+1
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_FrameBorderSize(),1) var=var+1
     
-    
     local col = 0
     ImGui_PushStyleColor(ctx, ImGui_Col_Border(),0x303030ff) col= col+1
     ImGui_PushStyleColor(ctx, ImGui_Col_BorderShadow(), 0x10101050) col= col+1
  
-    
     
     -- MENUBAR AND SETTINGS POPUP --
     
@@ -1424,7 +1421,7 @@
       
       ImGui_PushStyleColor(ctx, ImGui_Col_Border(), HSV(0.3, 0.1, 0.5, 1))
       ImGui_PushStyleColor(ctx, ImGui_Col_FrameBg(), HSV(0.65, 0.4, 0.2, 1))
-      ImGui_PushStyleColor(ctx, reaper.ImGui_Col_FrameBgHovered(), HSV(0.65, 0.2, 0.4, 1))
+      ImGui_PushStyleColor(ctx, ImGui_Col_FrameBgHovered(), HSV(0.65, 0.2, 0.4, 1))
       if ImGui_BeginCombo(ctx, '##5', auto_coloring_preview_value, 0) then
         for i=1, #combo_items do
           local is_selected = automode_id == i
@@ -1441,15 +1438,13 @@
       end
       ImGui_PopStyleColor(ctx, 3)
      
-      
-      
+   
       -- CHECKBOX FOR AUTO TRACK COLORING --
       
       ImGui_Dummy(ctx, 0, 0)
       rv, auto_trk = ImGui_Checkbox(ctx, "Autocolor new tracks", auto_trk)
 
 
-      
       -- MODE SELECTION --
       
       rv, selected_mode = ImGui_RadioButtonEx(ctx, 'Normal Mode', selected_mode, 0); ImGui_SameLine(ctx, 0 , 25)
@@ -1461,7 +1456,6 @@
       end
       
       
-
       -- SHINYCOLORS MODE POPUP --
       
       -- Always center this window when appearing
@@ -1495,7 +1489,6 @@
     ImGui_EndMenuBar(ctx)
     
     
-    
     -- PALETTE MENU --
         
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 10); var=var+1
@@ -1518,10 +1511,9 @@
         reaper.ImGui_SetNextWindowPos(ctx, set_x, set_y, reaper.ImGui_Cond_Appearing())
         end
         
-        visible, openSettingWnd = reaper.ImGui_Begin(ctx, 'Palette Settings', true, reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoDocking())
+        visible, openSettingWnd = ImGui_Begin(ctx, 'Palette Settings', true, reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoDocking())
         if visible then
          
-    
       
       -- GENERATE CUSTOM PALETTES -- 
       
@@ -1564,7 +1556,6 @@
       ImGui_Separator(ctx)
       
       
-      
       -- MAIN PALETTE SETTINGS --
       
       ImGui_Text(ctx, 'MAIN PALETTE:')
@@ -1599,7 +1590,6 @@
     end  
   end
     
-   
     
     -- UPPER RIGHT CORNER --
     
@@ -1625,7 +1615,6 @@
         
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 12) var=var+1 --custom palette upper space
     ImGui_SameLine(ctx, 0, 10)
-    
     
     
     -- SELECTION TOOL UPPER RIGHT CORNER --
@@ -1662,7 +1651,6 @@
     ImGui_PopStyleColor(ctx, col) -- for upper part
 
 
-
     -- -- GENERATING TABLES -- --
     
     if not main_palette
@@ -1679,18 +1667,19 @@
     end
   
   
-  
     -- CALLING FUNCTIONS -- 
     
     local sel_colors = get_sel_items_or_tracks_colors()
     
-    Color_new_items_automatically()   
-    automatic_item_coloring() 
+    if selected_mode == 1 then
+     Color_new_items_automatically()
+     automatic_item_coloring()
+    end
+     
     if auto_trk then
       Color_new_tracks_automatically()
     end
     reselect_take()
-    
     
     
     ---- ---- MIDDLE PART ---- ----
@@ -1873,6 +1862,7 @@
         palette_button_flags = palette_button_flags | ImGui_ColorEditFlags_NoBorder()
       end
 
+
     -- MAIN PALETTE BUTTONS --
       
       if ImGui_ColorButton(ctx, '##palette', main_palette[n], palette_button_flags, size, size) then
@@ -1896,9 +1886,7 @@
     ---- -----
     ---- -----
     
-    
     -- TRIGGER ACTIONS/FUNCTIONS VIA BUTTONS --
-    
     
     local bttn_h = 0.644
     local bttn_s = 0.45
@@ -1957,7 +1945,6 @@
     reaper.SetExtState(script_name ,'random_custom',   tostring(random_custom),true)
     reaper.SetExtState(script_name ,'random_main',     tostring(random_main),true)
     reaper.SetExtState(script_name ,'auto_trk',        tostring(auto_trk),true)
-    
   end
   
 
@@ -1998,36 +1985,21 @@
     local visible, open = ImGui_Begin(ctx, 'Chroma - Coloring Tool', true, window_flags)
     
     if visible then
-      init_state = GetProjectStateChangeCount(0)
-      ColorPalette()
-      ImGui_End(ctx)
-      
-      -- VODKA --
+      -- Vodka
       
       -- check for project tap change --
       local cur_project = getProjectTabIndex()
       if cur_project ~= old_project then
+        track_number2 = nil
         old_project = cur_project
-        cust_tbl = nil
       end
       
-      --vitalker check for project tap change --
-      --THIS PART IS WHERE YOU DECLARE YOUR SCRIPT VARIABLES, SO IT CAN BE IN -- PREDEFINE VALUES AS LOCAL-- PART
-      --[[
-      proj = {}
-      proj.tab, proj.fn = reaper.EnumProjects(-1)
-      proj.name = reaper.GetProjectName(proj.tab)
-      local last_st = GetProjectStateChangeCount(0)
+      -- END
       
-      --THE LOOP PART
-      proj_tab, projfn = reaper.EnumProjects(-1)
-      proj_name = reaper.GetProjectName(proj_tab)
-      if proj_tab ~= proj.tab or projfn ~= proj.fn or proj_name ~= proj.name then
-        proj.tab, proj.fn, proj.name = proj_tab, projfn, proj_name
-        last_st = GetProjectStateChangeCount(0)
-      end
-      ]]
-      -- END --
+      
+      init_state = GetProjectStateChangeCount(0)
+      ColorPalette()
+      ImGui_End(ctx)
      
     else
       if ((Undo_CanUndo2(0)=='Insert media items'
@@ -2059,6 +2031,7 @@
       defer(loop)
     end
   end
+  
   
   
   -- EXECUTE --
