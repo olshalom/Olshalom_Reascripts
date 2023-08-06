@@ -1200,7 +1200,7 @@
     local new_track = GetSelectedTrack(0, 0)
     local state = GetProjectStateChangeCount(0)
     if not track_number2 then track_number2 = track_number end
-    if track_number2 < track_number and new_track then 
+    if track_number2 < track_number and new_track then
       Undo_BeginBlock2(0)
       local found = false 
       if stored_val and state2 == state then
@@ -1349,7 +1349,6 @@
   
   function getProjectTabIndex()
     local i, project = 0, EnumProjects(-1, '')
-    
     while true do
       if EnumProjects(i, '') == project then
         return i
@@ -1985,17 +1984,14 @@
     local visible, open = ImGui_Begin(ctx, 'Chroma - Coloring Tool', true, window_flags)
     
     if visible then
-      -- Vodka
       
       -- check for project tap change --
       local cur_project = getProjectTabIndex()
+    
       if cur_project ~= old_project then
         track_number2 = nil
         old_project = cur_project
       end
-      
-      -- END
-      
       
       init_state = GetProjectStateChangeCount(0)
       ColorPalette()
