@@ -1,27 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="527823e98cd26fcb0ceb6d2577ae6845a1ab517a">
-  <category name="Coloring">
-    <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
-      <version name="0.5" author="olshalom, vitalker" time="2023-04-13T01:29:58Z">
-        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/c076ad2a52deb3c142eb8c08050e62a35082044f/Coloring/Chroma_Coloring%20Tool.lua</source>
-      </version>
-      <version name="0.52" author="olshalom, vitalker" time="2023-07-21T20:46:04Z">
-        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/83c085e57b6c18d6286b09df0dc62322e33b2d73/Coloring/Chroma_Coloring%20Tool.lua</source>
-      </version>
-      <version name="0.53" author="olshalom, vitalker" time="2023-07-29T20:35:38Z">
-        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/af9a0d61a332bb86d9bce84dbaff67d63216843c/Coloring/Chroma_Coloring%20Tool.lua</source>
-      </version>
-      <version name="0.54" author="olshalom, vitalker" time="2023-07-30T20:15:30Z">
-        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/efc610aebf8508b2283e160a28862467d2467979/Coloring/Chroma_Coloring%20Tool.lua</source>
-      </version>
-      <version name="0.55" author="olshalom, vitalker" time="2023-07-31T20:11:43Z">
-        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/3b1137c65e5d019df5316ed067f254fb4ff8a39f/Coloring/Chroma_Coloring%20Tool.lua</source>
-      </version>
-      <version name="0.56" author="olshalom, vitalker" time="2023-08-06T16:30:13Z">
-        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/527823e98cd26fcb0ceb6d2577ae6845a1ab517a/Coloring/Chroma_Coloring%20Tool.lua</source>
-      </version>
-    </reapack>
-  </category>
+<index version="1" name="Olshalom_Reascripts" commit="6145935ca7c5c118a5a7de5a9f0b0568720ea705">
   <metadata>
     <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
