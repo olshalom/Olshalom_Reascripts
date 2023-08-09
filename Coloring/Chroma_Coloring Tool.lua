@@ -1,9 +1,9 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.7.1
+-- @version 0.7.2
   
   
-
+  
 --[[
     
     ShinyColors Mode:
@@ -864,6 +864,7 @@
       end
     end      
     Undo_EndBlock2(0, "Apply palette color", 1+4) 
+    reaper.UpdateArrange()
   end
   
   
@@ -936,6 +937,7 @@
       end
       Undo_EndBlock2(0, "Apply palette color", 1+4) 
     end
+    reaper.UpdateArrange()
   end
   
   
