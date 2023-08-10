@@ -1,6 +1,6 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.7.3
+-- @version 0.7.4
   
   
 
@@ -597,8 +597,8 @@
     local sel_tracks = CountSelectedTracks(0)
     local itemcolor   
     if sel_items > 0 then
-      local test_item = GetSelectedMediaItem(0, 0)
-      if test_item2 ~= test_item or sel_items ~= it_cnt_sw then
+      local test_take = GetActiveTake(GetSelectedMediaItem(0, 0))
+      if test_take2 ~= test_take or sel_items ~= it_cnt_sw then
       
         -- set limit of selected items in ShinyColors Mode --
         if selected_mode == 1 then
@@ -627,13 +627,15 @@
             itemtrack2 = itemtrack
           end
           if selected_mode == 1 then
-            itemcolor = GetMediaItemTakeInfo_Value(take,"I_CUSTOMCOLOR")
-            if itemcolor == 0 then
-              --get color for highlighting and save infos to table for moving items in ShinyColors Mode
-              itemcolor = GetMediaTrackInfo_Value(itemtrack, "I_CUSTOMCOLOR")
-              move_tbl.trk_ip[index] = GetMediaTrackInfo_Value(itemtrack, "IP_TRACKNUMBER")   
-              move_tbl.it[index] = item   
-            end
+            if take then 
+              itemcolor = GetMediaItemTakeInfo_Value(take,"I_CUSTOMCOLOR")
+              if itemcolor == 0 then
+                --get color for highlighting and save infos to table for moving items in ShinyColors Mode
+                itemcolor = GetMediaTrackInfo_Value(itemtrack, "I_CUSTOMCOLOR")
+                move_tbl.trk_ip[index] = GetMediaTrackInfo_Value(itemtrack, "IP_TRACKNUMBER")   
+                move_tbl.it[index] = item   
+              end
+            end 
           else
             itemcolor = GetDisplayedMediaItemColor(item)
           end
@@ -645,8 +647,8 @@
         end
         test_track2 = nil         -- for comparing and stop in defer
         itemtrack2 = nil          -- for comparing and stop in defer
-        test_item2 = test_item    -- for comparing and stop in defer
-        itemcolor_sw = nil          -- for comparing and stop in defer
+        test_take2 = test_take    -- for comparing and stop in defer
+        itemcolor_sw = nil        -- for comparing and stop in defer
         it_cnt_sw = CountSelectedMediaItems(0) -- for highlighting, selected items_table get resetted
       end
       
@@ -789,12 +791,13 @@
     for i=0, CountSelectedMediaItems(0) -1 do
       item = GetSelectedMediaItem(0, i)
       it_cnt_sw= nil   -- to get highlighted highlighting
+      if sel_tbl.tke[i+1] then 
+        SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0) 
+      end 
       if selected_mode == 1 then
         local track_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(item), "IP_TRACKNUMBER")
         SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", col_tbl.it[track_ip])
-        SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0)
       else
-        SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0)
         SetMediaItemInfo_Value(item,"I_CUSTOMCOLOR", 0)
       end
     end
@@ -813,11 +816,12 @@
     Undo_BeginBlock2(0) 
     if sel_items > 0 then
       for i = 0, sel_items - 1 do
+        if sel_tbl.tke[i+1] then 
+          SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", tbl_tr[clr_key]) 
+        end 
         if selected_mode == 1 then
-          SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", tbl_it[clr_key]) 
-          SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", tbl_tr[clr_key])
-        else 
-          SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", tbl_tr[clr_key])
+          SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", tbl_it[clr_key])
+        else
           SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", 0) 
         end
   
@@ -827,7 +831,9 @@
             if selected_mode == 1 then
               Color_items_to_track_color_in_shiny_mode(sel_tbl.tr[j+1], tbl_it[clr_key])
             else
-              SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0)
+              if sel_tbl.tke[i+1] then 
+                SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0) 
+              end 
               SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", 0)
             end
           end
@@ -849,12 +855,12 @@
             for i = 0, cnt_items -1 do
               local new_item = GetTrackMediaItem( track, i )
               local new_take = GetActiveTake(new_item)
-
+              if new_take then 
+                SetMediaItemTakeInfo_Value(new_take,"I_CUSTOMCOLOR", 0) 
+              end 
               if selected_mode == 1 then
-                SetMediaItemTakeInfo_Value(new_take,"I_CUSTOMCOLOR", 0)
                 SetMediaItemInfo_Value(new_item,"I_CUSTOMCOLOR", tbl_it[clr_key])
-              else 
-                SetMediaItemTakeInfo_Value(new_take,"I_CUSTOMCOLOR", 0)
+              else
                 SetMediaItemInfo_Value(new_item,"I_CUSTOMCOLOR", 0)
               end
             end
@@ -865,7 +871,7 @@
       end
     end      
     Undo_EndBlock2(0, "Apply palette color", 1+4) 
-    reaper.UpdateArrange()
+    UpdateArrange()
   end
   
   
@@ -882,22 +888,24 @@
       Undo_BeginBlock2(0) 
       if sel_items > 0 then
         for i = 0, sel_items -1 do
+          if sel_tbl.tke[i+1] then 
+            SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", color) 
+          end 
           if selected_mode == 1 then
-            SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", color)
             SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", background_color)
-          else 
-            SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", color)
+          else
             SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", 0)
           end
           
           if ImGui_IsKeyDown(ctx, ImGui_Mod_Shortcut()) then
             for j = 0, #sel_tbl.tr -1 do
+              if sel_tbl.tke[i+1] then 
+                SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0) 
+              end 
               if selected_mode == 1 then
-                Color_items_to_track_color_in_shiny_mode(sel_tbl.tr[j+1], background_color) 
-                SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0)
+                Color_items_to_track_color_in_shiny_mode(sel_tbl.tr[j+1], background_color)
               else
                 SetMediaTrackInfo_Value(sel_tbl.tr[j+1],"I_CUSTOMCOLOR", color)
-                SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0)
               end
             end
           end
@@ -924,7 +932,9 @@
               for i = 0, cnt_items -1 do
                 local new_item =  GetTrackMediaItem( track, i )
                 local new_take = GetActiveTake(new_item)
-                SetMediaItemTakeInfo_Value(new_take,"I_CUSTOMCOLOR", 0)
+                if new_take then 
+                  SetMediaItemTakeInfo_Value(new_take,"I_CUSTOMCOLOR", 0) 
+                end              
                 if selected_mode == 1 then
                   SetMediaItemInfo_Value(new_item,"I_CUSTOMCOLOR", background_color)
                 else
@@ -938,7 +948,7 @@
       end
       Undo_EndBlock2(0, "Apply palette color", 1+4) 
     end
-    reaper.UpdateArrange()
+    UpdateArrange()
   end
   
   
@@ -1078,7 +1088,10 @@
   
     for j=0, GetTrackNumMediaItems(track, 0) -1 do
       local trackitem = GetTrackMediaItem(track, j)
-      local tracktakecolor = GetMediaItemTakeInfo_Value(GetActiveTake(trackitem),"I_CUSTOMCOLOR")
+      local take = GetActiveTake(trackitem) 
+      if take then 
+        local tracktakecolor = GetMediaItemTakeInfo_Value(take,"I_CUSTOMCOLOR")
+      end 
       if tracktakecolor == 0 then
         SetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR", background_color)
       end
@@ -1114,7 +1127,12 @@
   local function Color_multiple_tracks_to_palette_colors()
   
     local numbers = shuffled_numbers (120)
-    local first_ip = GetMediaTrackInfo_Value(GetSelectedTrack(0, 0), "IP_TRACKNUMBER")
+    local tr = GetSelectedTrack(0, 0)
+    if not tr then
+      reaper.MB( "Please select at least 1 track", "Can not color tracks", 0 )
+      return
+    end
+    local first_ip = GetMediaTrackInfo_Value(tr, "IP_TRACKNUMBER")
     if not first_ip then return end 
     local first_color = (col_tbl.tr[first_ip])
     color_state = 0
@@ -2023,6 +2041,8 @@
     ImGui_PopFont(ctx)
     ImGui_PopStyleColor(ctx, style_color_n)
     ImGui_PopStyleVar(ctx, style_var_m)
+
+    if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then open = false end -- Escape Key
 
     if open then
       defer(loop)
