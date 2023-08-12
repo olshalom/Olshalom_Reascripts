@@ -1,18 +1,18 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.7.4
+-- @version 0.7.5
   
   
 
 --[[
-    
+
     ShinyColors Mode:
+  
     To use the full potentual of this Mode, make sure the Custom color under REAPER Preferences are set correctly,
     or the actual used theme provides the value of 50 for tinttcp inside its rtconfig-file! More Infos: ---------
-    
-    ]]
-    
-
+  
+  ]]
+  
     
   
   -- PREDEFINE FUNCTIONS AS LOCAL --
@@ -327,14 +327,11 @@
     if reaper.GetExtState(script_name, "auto_trk") == "false" then auto_trk = false end
     if reaper.GetExtState(script_name, "auto_trk") == "true" then auto_trk = true end
   else auto_trk = false end
-  
-  
 
---REST
 --  dofile(reaper.GetResourcePath() ..
 --       '/Scripts/ReaTeam Extensions/API/imgui.lua')('0.8')
 
-  local ctx = reaper.ImGui_CreateContext('My script')
+  local ctx = reaper.ImGui_CreateContext(script_name) 
   local sans_serif = reaper.ImGui_CreateFont('sans-serif', 15)
   reaper.ImGui_Attach(ctx, sans_serif)
   local openSettingWnd = false
@@ -597,9 +594,9 @@
     local sel_tracks = CountSelectedTracks(0)
     local itemcolor   
     if sel_items > 0 then
-      local test_take = GetActiveTake(GetSelectedMediaItem(0, 0))
-      if test_take2 ~= test_take or sel_items ~= it_cnt_sw then
-      
+      local test_item = GetSelectedMediaItem(0, 0) 
+      local test_take = GetActiveTake(test_item) 
+      if test_take2 ~= test_take or sel_items ~= it_cnt_sw or test_item2 ~= test_item then 
         -- set limit of selected items in ShinyColors Mode --
         if selected_mode == 1 then
           if sel_items > 30000 then
@@ -633,7 +630,13 @@
                 --get color for highlighting and save infos to table for moving items in ShinyColors Mode
                 itemcolor = GetMediaTrackInfo_Value(itemtrack, "I_CUSTOMCOLOR")
                 move_tbl.trk_ip[index] = GetMediaTrackInfo_Value(itemtrack, "IP_TRACKNUMBER")   
-                move_tbl.it[index] = item   
+                move_tbl.it[index] = item  
+              end
+            else
+              itemcolor = GetMediaItemInfo_Value(item,"I_CUSTOMCOLOR")
+              trackip = GetMediaTrackInfo_Value(itemtrack, "IP_TRACKNUMBER")
+              if itemcolor == col_tbl.it[trackip] then
+                itemcolor = GetMediaTrackInfo_Value(itemtrack, "I_CUSTOMCOLOR")
               end
             end 
           else
@@ -648,6 +651,7 @@
         test_track2 = nil         -- for comparing and stop in defer
         itemtrack2 = nil          -- for comparing and stop in defer
         test_take2 = test_take    -- for comparing and stop in defer
+        test_item2 = test_item    -- for comparing and stop in defer
         itemcolor_sw = nil        -- for comparing and stop in defer
         it_cnt_sw = CountSelectedMediaItems(0) -- for highlighting, selected items_table get resetted
       end
@@ -668,9 +672,9 @@
       end 
     else
       sel_color = {}
-      test_track2 = nil 
-      test_item2 = nil
-      items_mode = 2 
+      test_track2 = nil
+      test_item2 = nil 
+      items_mode = 2
     end
     return sel_color, move_tbl --sel_tbl ,still not sure, if returning tables is needed
   end
@@ -678,7 +682,7 @@
   
   
   -- FUNCTIONS FOR VARIOUS COLORING --
-  ------------------------------------
+  --________________________________--
   
   
   -- caching trackcolors -- (could be extended and refined with a function written by justin)
@@ -793,7 +797,7 @@
       it_cnt_sw= nil   -- to get highlighted highlighting
       if sel_tbl.tke[i+1] then 
         SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0) 
-      end 
+      end
       if selected_mode == 1 then
         local track_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(item), "IP_TRACKNUMBER")
         SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", col_tbl.it[track_ip])
@@ -802,6 +806,7 @@
       end
     end
     Undo_EndBlock2(0, "Color selected items to track color", 4)
+    UpdateArrange() 
   end
   
 
@@ -816,24 +821,26 @@
     Undo_BeginBlock2(0) 
     if sel_items > 0 then
       for i = 0, sel_items - 1 do
-        if sel_tbl.tke[i+1] then 
-          SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", tbl_tr[clr_key]) 
-        end 
         if selected_mode == 1 then
+          
           SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", tbl_it[clr_key])
+          if sel_tbl.tke[i+1] then 
+            SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", tbl_tr[clr_key])
+          end
         else
-          SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", 0) 
+          if sel_tbl.tke[i+1] then 
+            SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", tbl_tr[clr_key]) 
+          else
+            SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", tbl_tr[clr_key])
+          end
+          
         end
-  
         if ImGui_IsKeyDown(ctx, ImGui_Mod_Shortcut()) then
           for j = 0, #sel_tbl.tr -1 do
             SetMediaTrackInfo_Value(sel_tbl.tr[j+1],"I_CUSTOMCOLOR", tbl_tr[clr_key])
             if selected_mode == 1 then
               Color_items_to_track_color_in_shiny_mode(sel_tbl.tr[j+1], tbl_it[clr_key])
             else
-              if sel_tbl.tke[i+1] then 
-                SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0) 
-              end 
               SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", 0)
             end
           end
@@ -888,20 +895,23 @@
       Undo_BeginBlock2(0) 
       if sel_items > 0 then
         for i = 0, sel_items -1 do
-          if sel_tbl.tke[i+1] then 
-            SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", color) 
-          end 
           if selected_mode == 1 then
             SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", background_color)
+            if sel_tbl.tke[i+1] then 
+              SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", color)
+            end
           else
-            SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", 0)
+            if sel_tbl.tke[i+1] then 
+              SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", color)
+            else
+              SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", color)
+            end
           end
-          
           if ImGui_IsKeyDown(ctx, ImGui_Mod_Shortcut()) then
             for j = 0, #sel_tbl.tr -1 do
               if sel_tbl.tke[i+1] then 
                 SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0) 
-              end 
+              end
               if selected_mode == 1 then
                 Color_items_to_track_color_in_shiny_mode(sel_tbl.tr[j+1], background_color)
               else
@@ -918,7 +928,7 @@
           local track = GetSelectedTrack(0,i)
           SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", color)
           if selected_mode == 1 then
-            for j=0, GetTrackNumMediaItems(track, 0) -1 do
+            for j=0, GetTrackNumMediaItems(track) -1 do 
               local trackitem = GetTrackMediaItem(track, j)
               local tracktakecolor = GetMediaItemTakeInfo_Value(GetActiveTake(trackitem),"I_CUSTOMCOLOR")
               if tracktakecolor == 0 then
@@ -1083,17 +1093,22 @@
   end
   
   
-
+  
   function Color_items_to_track_color_in_shiny_mode(track, background_color) 
   
-    for j=0, GetTrackNumMediaItems(track, 0) -1 do
+    for j=0, GetTrackNumMediaItems(track) -1 do 
       local trackitem = GetTrackMediaItem(track, j)
       local take = GetActiveTake(trackitem) 
-      if take then 
+      if take then
         local tracktakecolor = GetMediaItemTakeInfo_Value(take,"I_CUSTOMCOLOR")
-      end 
-      if tracktakecolor == 0 then
-        SetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR", background_color)
+        if tracktakecolor == 0 then
+          SetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR", background_color)
+        end
+      else
+        local trackitemcolor = GetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR")
+        if trackitemcolor == 0 then 
+          SetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR", background_color)
+        end
       end
     end
   end
@@ -1379,9 +1394,8 @@
   
   
   
----------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------
-
+--[[_______________________________________________________________________________
+    _______________________________________________________________________________]]
   
 
   -- THE COLORPALETTE GUI--
@@ -1644,7 +1658,7 @@
       tr_txt = 'Items'
       tr_txt_h = 0.15
     elseif items_mode == 2 then 
-      tr_txt = '--'
+      tr_txt = '##No_selection' 
       tr_txt_h = 0.555
     end
     
@@ -1657,7 +1671,7 @@
         items_mode = 2
       elseif items_mode == 1 then 
         reaper.Main_OnCommand(40289, 0)
-        if CountSelectedTracks(0)>0 then items_mode = 0 -- REST
+        if CountSelectedTracks(0)>0 then items_mode = 0
         else items_mode = 2 end
       elseif items_mode == 2 then 
         -- reselect items from saved selected items table, would be cool here
@@ -1703,7 +1717,7 @@
     ---- ---- MIDDLE PART ---- ----
     
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_FrameRounding(),2)    -- general rounding for color widgets
-    ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 0) --first seperator upper space
+    ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 0)  -- first seperator upper space
     
     -- CUSTOM COLOR PALETTE --
     
@@ -1760,8 +1774,10 @@
     ImGui_PopStyleVar(ctx,1)
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, -2)
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_SeparatorTextBorderSize(),3) 
+    ImGui_PushStyleVar (ctx, reaper.ImGui_StyleVar_SeparatorTextAlign(),1, 1)
+    --ImGui_SeparatorText(ctx, 'Custom Palette')
     ImGui_SeparatorText(ctx, '')
-    ImGui_PopStyleVar(ctx,2)
+    ImGui_PopStyleVar(ctx,3)
 
 
     -- CUSTOM COLOR WIDGET --
@@ -1845,10 +1861,15 @@
     
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, -7)
     ImGui_Dummy(ctx,0,0)
-    ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 3)
-    ImGui_PushStyleVar(ctx, ImGui_StyleVar_SeparatorTextBorderSize(),3) 
-    ImGui_SeparatorText(ctx, '')
-    ImGui_PopStyleVar(ctx,3)
+    ImGui_PushStyleColor(ctx, ImGui_Col_Text(), 0xffe8acff)
+    ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 2)
+    ImGui_PushStyleVar(ctx, ImGui_StyleVar_SeparatorTextBorderSize(),3)
+    ImGui_PushStyleVar (ctx, reaper.ImGui_StyleVar_SeparatorTextAlign(),1, 0)
+    ImGui_PushStyleVar (ctx, reaper.ImGui_StyleVar_SeparatorTextPadding(),40, 4)
+    ImGui_SeparatorText(ctx, 'Main Palette')
+    ImGui_PopStyleVar(ctx,5)
+    
+    ImGui_PopStyleColor(ctx, 1) 
 
      
     -- MAIN COLOR PALETTE --
@@ -1910,33 +1931,35 @@
     local bttn_s = 0.45
     local bttn_v = 0.96
     
-    local br_h = 0.558
+    local br_h = 0.55
     local br_s = 0.4
-    local br_v = 0.4
+    local br_v = 0.5
+    local bttn_width = (w-4*8-40)/5
+    local bttn_height = h/8
 
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(),0xffffffff)
     
-    if button_action(bttn_h, bttn_s, bttn_v, 1, ' Color selected\n  items to track', 120, 41, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
+    if button_action(bttn_h, bttn_s, bttn_v, 1, ' Color selected\n  items to track', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
       Color_selected_items_to_track_color()
     end
 
     ImGui_SameLine(ctx, 0.0, 12)
-    if button_action(bttn_h, bttn_s, bttn_v, 1, '   Set children\n to same color', 120, 41, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
+    if button_action(bttn_h, bttn_s, bttn_v, 1, '   Set children\n to same color', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
       color_childs_to_parentcolor() 
     end
 
     ImGui_SameLine(ctx, 0.0, 12)
-    if button_action(bttn_h, bttn_s, bttn_v, 1, ' Color tracks\n  to gradient', 120, 41, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
+    if button_action(bttn_h, bttn_s, bttn_v, 1, ' Color tracks\n  to gradient', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
       Color_selected_tracks_with_gradient()
     end
     
     ImGui_SameLine(ctx, 0.0, 12)
-    if button_action(bttn_h, bttn_s, bttn_v, 1, 'Color tracks to\n  main palette', 120, 41, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
+    if button_action(bttn_h, bttn_s, bttn_v, 1, 'Color tracks to\n  main palette', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
       Color_multiple_tracks_to_palette_colors() 
     end
     
     ImGui_SameLine(ctx, 0.0, 12)
-    if button_action(bttn_h, bttn_s, bttn_v, 1, '  Color tracks to\n  custom palette ', 120, 41, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
+    if button_action(bttn_h, bttn_s, bttn_v, 1, '  Color tracks to\n  custom palette ', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
       Color_multiple_tracks_to_custom_palette()
     end
 
@@ -1999,7 +2022,7 @@
     local window_flags = ImGui_WindowFlags_None() |  ImGui_WindowFlags_MenuBar()
     local style_color_n = push_style_color()
     local style_var_m = push_style_var()
-    ImGui_SetNextWindowSize(ctx, 400, 140, ImGui_Cond_FirstUseEver())
+    ImGui_SetNextWindowSize(ctx, 1000, 500, ImGui_Cond_FirstUseEver())
     local visible, open = ImGui_Begin(ctx, 'Chroma - Coloring Tool', true, window_flags)
     
     if visible then
