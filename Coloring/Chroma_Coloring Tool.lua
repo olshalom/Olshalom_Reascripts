@@ -1,6 +1,6 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.7.5
+-- @version 0.7.6
   
   
 
@@ -782,6 +782,7 @@
         local tr_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(item), "IP_TRACKNUMBER")
         SetMediaItemInfo_Value(item,"I_CUSTOMCOLOR", col_tbl.it[tr_ip] )
       end
+      UpdateArrange() 
     end
   end
         
@@ -789,8 +790,7 @@
 
   -- COLOR SELECTED ITEMS TO TRACK COLOR --
 
-  local function Color_selected_items_to_track_color()
-  
+  local function Reset_to_default_color() --VODKA
     Undo_BeginBlock2(0) 
     for i=0, CountSelectedMediaItems(0) -1 do
       item = GetSelectedMediaItem(0, i)
@@ -806,7 +806,7 @@
       end
     end
     Undo_EndBlock2(0, "Color selected items to track color", 4)
-    UpdateArrange() 
+    UpdateArrange()
   end
   
 
@@ -873,9 +873,9 @@
             end
           end
         end
-        col_tbl = nil                 
-        sel_tracks2 = nil   -- to get highlighting
       end
+      col_tbl = nil                 
+      sel_tracks2 = nil   -- to get highlighting
     end      
     Undo_EndBlock2(0, "Apply palette color", 1+4) 
     UpdateArrange()
@@ -1094,8 +1094,7 @@
   
   
   
-  function Color_items_to_track_color_in_shiny_mode(track, background_color) 
-  
+  function Color_items_to_track_color_in_shiny_mode(track, background_color)
     for j=0, GetTrackNumMediaItems(track) -1 do 
       local trackitem = GetTrackMediaItem(track, j)
       local take = GetActiveTake(trackitem) 
@@ -1106,7 +1105,8 @@
         end
       else
         local trackitemcolor = GetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR")
-        if trackitemcolor == 0 then 
+        trackip = GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
+        if trackitemcolor == col_tbl.it[trackip] then
           SetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR", background_color)
         end
       end
@@ -1260,11 +1260,12 @@
         end 
       end
       track_number2, sel_tracks2, col_tbl = track_number, nil, nil
+      Undo_EndBlock2(0, "Automatically color new tracks", 1)
     elseif track_number2 > track_number then
       track_number2 = track_number
       col_tbl = nil 
     end
-    Undo_EndBlock2(0, "Automatically color new tracks", 1)
+
   end
   
   
@@ -1476,6 +1477,13 @@
       ImGui_Dummy(ctx, 0, 0)
       rv, auto_trk = ImGui_Checkbox(ctx, "Autocolor new tracks", auto_trk)
 
+      
+      -- BUTTON FOR PDF IN SETTINGS WINDOW --
+      ImGui_SameLine(ctx, 0, 20)
+      if ImGui_Button(ctx, 'How to use ShinyColors Mode', 180, 20) then
+        reaper.CF_ShellExecute('https://drive.google.com/file/d/1fnRfPrMjsfWTdJtjSAny39dWvJTOyni1/view?usp=share_link')
+      end
+      
 
       -- MODE SELECTION --
       
@@ -1579,6 +1587,7 @@
          
       if button_color(0.14, 0.9, 0.7, 1, 'Reset Custom', 160, 19, false, 6)  then
         custom_palette = {}
+        cust_tbl = nil
         for m = 0, 23 do
           insert(custom_palette, HSL(m / 24+0.69, 0.1, 0.2, 1))
         end
@@ -1748,11 +1757,15 @@
       if highlight2 == false then
         palette_button_flags2 = palette_button_flags2 | ImGui_ColorEditFlags_NoBorder()
       end
-      if ImGui_ColorButton(ctx, '##palette2', custom_palette[m],  palette_button_flags2, size, size) then
-        widgetscolorsrgba = (custom_palette[m]) -- is it needed anymore? Yes for highlighting
+      if ImGui_ColorButton(ctx, '##palette2', custom_palette[m], palette_button_flags2, size, size) then
+        widgetscolorsrgba = (custom_palette[m]) -- needed for highlighting
         coloring(cust_tbl.tr, cust_tbl.it, m)
       end
-      
+      --VODKA
+      if reaper.ImGui_IsItemClicked(ctx, reaper.ImGui_MouseButton_Right()) then
+        custom_palette[m] = HSL((m-1) / 24+0.69, 0.1, 0.2, 1)
+      end
+      --VODKA END
       if highlight2 == true then
         ImGui_PopStyleColor(ctx,1)
         ImGui_PopStyleVar(ctx,1)
@@ -1931,22 +1944,24 @@
     local bttn_s = 0.45
     local bttn_v = 0.96
     
-    local br_h = 0.55
+    local br_h = 0.558
     local br_s = 0.4
-    local br_v = 0.5
+    local br_v = 0.3
     local bttn_width = (w-4*8-40)/5
     local bttn_height = h/8
-
+    
+    
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(),0xffffffff)
     
-    if button_action(bttn_h, bttn_s, bttn_v, 1, ' Color selected\n  items to track', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
-      Color_selected_items_to_track_color()
-    end
 
-    ImGui_SameLine(ctx, 0.0, 12)
-    if button_action(bttn_h, bttn_s, bttn_v, 1, '   Set children\n to same color', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
-      color_childs_to_parentcolor() 
-    end
+   if button_action(bttn_h, bttn_s, bttn_v, 1, 'Reset selected to\n    default color', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
+     Reset_to_default_color()
+   end
+   
+   ImGui_SameLine(ctx, 0.0, 12)
+   if button_action(bttn_h, bttn_s, bttn_v, 1, 'Color children\n     to parent', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
+     color_childs_to_parentcolor() 
+   end
 
     ImGui_SameLine(ctx, 0.0, 12)
     if button_action(bttn_h, bttn_s, bttn_v, 1, ' Color tracks\n  to gradient', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
