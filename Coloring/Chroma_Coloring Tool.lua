@@ -1,6 +1,6 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.7.7
+-- @version 0.7.8
 -- @changelog
 --   NEW features:
 --     > Set selected items/tracks to default color action button (selection dependent)
