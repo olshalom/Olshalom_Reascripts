@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="8685f6f9e74781972ba28b0719057def443f1ee8">
+<index version="1" name="Olshalom_Reascripts" commit="32ce5cb47fa716f3a26c68c75e2dcd6024441236">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -27,6 +27,23 @@
 . > Reset single Custom Color Palette Box with right click
 . > Added ReaImGui installation checking ]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/8685f6f9e74781972ba28b0719057def443f1ee8/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.7.8" author="olshalom, vitalker" time="2023-08-15T21:52:08Z">
+        <changelog><![CDATA[NEW features:
+  > Set selected items/tracks to default color action button (selection dependent)
+  > Set color to empty Custom Color Palette Box simply by clicking
+  > Reset single Custom Color Palette Box with right click
+  > Added ReaImGui installation checking 
+
+Appearance:
+  > Redesigning Palette menu settings
+  > Renamed/added some GUI text for better comprehensibility
+
+Bug fixes:
+  > Fixed gradient function
+  > General code updates
+  > Cornercase bugfixes ]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/32ce5cb47fa716f3a26c68c75e2dcd6024441236/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
   </category>
