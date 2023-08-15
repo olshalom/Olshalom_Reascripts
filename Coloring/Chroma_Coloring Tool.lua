@@ -7,11 +7,11 @@
 --     > Set color to empty Custom Color Palette Box simply by clicking
 --     > Reset single Custom Color Palette Box with right click
 --     > Added ReaImGui installation checking 
-
+--
 --   Appearance:
 --     > Redesigning Palette menu settings
 --     > Renamed/added some GUI text for better comprehensibility
-
+--
 --   Bug fixes:
 --     > Fixed gradient function
 --     > General code updates
