@@ -1,17 +1,43 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.7.6
-  
+-- @version 0.7.7
+-- @changelog
+--   NEW features:
+--   . > Set selected items/tracks to default color action button (selection dependent)
+--   . > Set color to empty Custom Color Palette Box simply by clicking
+--   . > Reset single Custom Color Palette Box with right click
+--   . > Added ReaImGui installation checking 
+
+--   Appearance:
+--   . > Redesigning Palette menu settings
+--   . > Renamed/added some GUI text for better comprehensibility
+
+--   Bug fixes:
+--   . > Fixed gradient function
+--   . > General code updates
+--   . > Cornercase bugfixes 
+
   
 
 --[[
-
-    ShinyColors Mode:
-  
     To use the full potentual of this Mode, make sure the Custom color under REAPER Preferences are set correctly,
-    or the actual used theme provides the value of 50 for tinttcp inside its rtconfig-file! More Infos: ---------
+    or the actual used theme provides the value of 50 for tinttcp inside its rtconfig.txt file! More Info: ---------
   
   ]]
+
+  local script_name = 'Chroma - Coloring Tool'
+  if not reaper.APIExists('ImGui_CreateContext') then
+    reaper.ShowMessageBox('Install\nReaImGui: ReaScript binding for Dear ImGui\nto make the script work', script_name, 0)
+    if reaper.APIExists('ReaPack_BrowsePackages') then
+      reaper.ReaPack_BrowsePackages('ReaImGui: ReaScript binding for Dear ImGui')
+    else
+      if reaper.APIExists('CF_ShellExecute') then
+        reaper.CF_ShellExecute('https://forum.cockos.com/showthread.php?t=250419')
+      else
+        reaper.ShowConsoleMsg('ReaImGui thread on Cockos Forums:\nhttps://forum.cockos.com/showthread.php?t=250419')
+      end
+    end
+  end
   
     
   
@@ -168,7 +194,6 @@
   
   -- PREDEFINE VALUES AS LOCAL--
 
-  local script_name = 'Chroma - Coloring Tool'
   local test_item2          
   local Item2               
   local track2              
@@ -371,7 +396,7 @@
       end
     end
     if not generated_color then 
-      reaper.ShowMessageBox("Please drag a color to the first custom Palette Color.", "Important info", 0 )
+      reaper.ShowMessageBox("Drag a color from the MAIN Palette to the first CUSTOM Palette color box.", "Important info", 0 )
     end
     generated_color = nil
     cust_tbl = nil
@@ -414,7 +439,7 @@
       end
     end
     if not generated_color then 
-      reaper.ShowMessageBox("Please drag a color to the first custom Palette Color.", "Important info", 0 )
+      reaper.ShowMessageBox("Drag a color from the MAIN Palette to the first CUSTOM Palette color box.", "Important info", 0 )
     end
     generated_color = nil
     cust_tbl = nil
@@ -456,7 +481,7 @@
       end
     end
     if not generated_color then 
-      reaper.ShowMessageBox("Please drag a color to the first custom Palette Color.", "Important info", 0 )
+      reaper.ShowMessageBox("Drag a color from the MAIN Palette to the first CUSTOM Palette color box.", "Important info", 0 )
     end
     generated_color = nil
     cust_tbl = nil
@@ -499,7 +524,7 @@
       end
     end
     if not generated_color then 
-      reaper.ShowMessageBox("Please drag a color to the first custom Palette Color.", "Important info", 0 )
+      reaper.ShowMessageBox("Drag a color from the MAIN Palette to the first CUSTOM Palette color box.", "Important info", 0 )
     end
     generated_color = nil
     cust_tbl = nil
@@ -543,7 +568,7 @@
       end
     end
     if not generated_color then 
-      reaper.ShowMessageBox("Please drag a color to the first custom Palette Color.", "Important info", 0 )
+      reaper.ShowMessageBox("Drag a color from the MAIN Palette to the first CUSTOM Palette color box.", "Important info", 0 )
     end
     generated_color = nil
     cust_tbl = nil
@@ -704,11 +729,12 @@
   
   -- COLOR ITEMS TO TRACK COLOR IN SHINYCOLORS MODE  --
   
-  local function automatic_item_coloring()
+  local function automatic_item_coloring() -- moving items
     
     local local_ip
     local Item3 = GetSelectedMediaItem(0, 0)
     local itm_cnt = CountSelectedMediaItems(0)
+    reaper.PreventUIRefresh(1) 
     if Item3 and itm_cnt < 16001 then
       local track1 = GetMediaItemTrack(Item3)
       if Item2 == Item3 and track2 ~= track1 then
@@ -743,6 +769,7 @@
       end
     end 
     UpdateArrange()
+    reaper.PreventUIRefresh(-1)
   end
   
   
@@ -758,12 +785,15 @@
         cur_state6 = cur_state5+1
         test_item2, it_cnt_sw = nil, nil 
       elseif cur_state5+1 == cur_state6 then 
+        reaper.PreventUIRefresh(1)
         for i=0, CountSelectedMediaItems(0) -1 do 
           local back = Background_color_rgba(sel_color[i+1]) 
           SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", back) 
         end
         cur_state6 = cur_state6 -1
       end
+      UpdateArrange()
+      reaper.PreventUIRefresh(-1)
     end
   end
       
@@ -776,37 +806,52 @@
         or Undo_CanUndo2(0)=='Recorded media')
           and (not cur_state4 or cur_state4<init_state)) 
             and automode_id == 1 then
+      reaper.PreventUIRefresh(1) 
       cur_state4 = GetProjectStateChangeCount(0)
       for i=0, CountSelectedMediaItems(0) -1 do
         local item = GetSelectedMediaItem(0,i)
         local tr_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(item), "IP_TRACKNUMBER")
         SetMediaItemInfo_Value(item,"I_CUSTOMCOLOR", col_tbl.it[tr_ip] )
       end
-      UpdateArrange() 
+      UpdateArrange()
+      reaper.PreventUIRefresh(-1) 
     end
   end
-        
-        
 
   -- COLOR SELECTED ITEMS TO TRACK COLOR --
 
-  local function Reset_to_default_color() --VODKA
+  local function Reset_to_default_color() 
+    reaper.PreventUIRefresh(1) 
     Undo_BeginBlock2(0) 
-    for i=0, CountSelectedMediaItems(0) -1 do
-      item = GetSelectedMediaItem(0, i)
-      it_cnt_sw= nil   -- to get highlighted highlighting
-      if sel_tbl.tke[i+1] then 
-        SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0) 
+    if items_mode == 1 then
+      for i=0, CountSelectedMediaItems(0) -1 do
+        item = GetSelectedMediaItem(0, i)
+        it_cnt_sw= nil   -- to get highlighted highlighting
+        if sel_tbl.tke[i+1] then 
+          SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1],"I_CUSTOMCOLOR", 0) 
+        end
+        if selected_mode == 1 then
+          local track_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(item), "IP_TRACKNUMBER")
+          SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", col_tbl.it[track_ip])
+        else
+          SetMediaItemInfo_Value(item,"I_CUSTOMCOLOR", 0)
+        end
       end
+    else 
       if selected_mode == 1 then
-        local track_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(item), "IP_TRACKNUMBER")
-        SetMediaItemInfo_Value(sel_tbl.it[i+1],"I_CUSTOMCOLOR", col_tbl.it[track_ip])
+        for i=0, CountSelectedTracks(0) -1 do
+          track = GetSelectedTrack(0, i)
+          SetMediaTrackInfo_Value(track, "I_CUSTOMCOLOR", 0)
+          trackcolor = GetTrackColor(track)
+          Color_items_to_track_color_in_shiny_mode(track, trackcolor)
+        end
       else
-        SetMediaItemInfo_Value(item,"I_CUSTOMCOLOR", 0)
+        reaper.Main_OnCommandEx(40359, 0, 0)
       end
     end
-    Undo_EndBlock2(0, "Color selected items to track color", 4)
+    Undo_EndBlock2(0, "Set selected to default color", 4)
     UpdateArrange()
+    reaper.PreventUIRefresh(-1) 
   end
   
 
@@ -814,7 +859,7 @@
   -- COLORING FOR MAIN AND CUSTOM PALETTE WIDGETS --
   
   local function coloring(tbl_tr, tbl_it, clr_key) 
-   
+    reaper.PreventUIRefresh(1) 
     local sel_items = CountSelectedMediaItems(0)
     local sel_tracks = CountSelectedTracks(0)
   
@@ -879,6 +924,7 @@
     end      
     Undo_EndBlock2(0, "Apply palette color", 1+4) 
     UpdateArrange()
+    reaper.PreventUIRefresh(-1) 
   end
   
   
@@ -886,7 +932,7 @@
   -- COLORING FOR CUSTOM COLOR AND LAST TOUCHED -- 
   
   local function coloring_cust_col(in_color) -- made it to input color
-  
+    reaper.PreventUIRefresh(1) 
     if in_color then
       local color = ImGui_ColorConvertNative(in_color >>8)|0x1000000
       local background_color = Background_color_rgba(in_color)
@@ -928,13 +974,7 @@
           local track = GetSelectedTrack(0,i)
           SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", color)
           if selected_mode == 1 then
-            for j=0, GetTrackNumMediaItems(track) -1 do 
-              local trackitem = GetTrackMediaItem(track, j)
-              local tracktakecolor = GetMediaItemTakeInfo_Value(GetActiveTake(trackitem),"I_CUSTOMCOLOR")
-              if tracktakecolor == 0 then
-                SetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR", background_color)
-              end
-            end
+            Color_items_to_track_color_in_shiny_mode(track, background_color) 
           end
           if ImGui_IsKeyDown(ctx, ImGui_Mod_Shortcut()) then
             local cnt_items = CountTrackMediaItems(track)
@@ -959,6 +999,7 @@
       Undo_EndBlock2(0, "Apply palette color", 1+4) 
     end
     UpdateArrange()
+    reaper.PreventUIRefresh(-1) 
   end
   
   
@@ -968,16 +1009,16 @@
    local function Color_selected_tracks_with_gradient()
   
     local seltracks = CountSelectedTracks(0)
-    if seltracks > 0 then
+    if seltracks > 2 then 
       local first_color = GetMediaTrackInfo_Value(GetSelectedTrack(0, 0), "I_CUSTOMCOLOR")
-      if first_color == 0 or nil then
-        reaper.MB("Set first selected track to a custom color in order to make a gradient.", "FAILED", 0 )
+      local last_color = GetMediaTrackInfo_Value(GetSelectedTrack(0, seltracks-1), "I_CUSTOMCOLOR")
+      if first_color == 0 or last_color == 0 then 
+        reaper.MB("Set first and last selected tracks to custom colors first.", "", 0 )
       else
-      
+        reaper.PreventUIRefresh(1) 
         Undo_BeginBlock2(0)
-        local last_color = GetMediaTrackInfo_Value(GetSelectedTrack(0, CountSelectedTracks(0)-1), "I_CUSTOMCOLOR")
         if first_color == last_color then
-          reaper.MB("Please make last selected trackcolor different from first.", "FAILED", 0 )
+          reaper.MB("Last selected track color should be different than first.", "", 0 )
           return end
         local r2, g2, b2 = ColorFromNative(last_color)
         local firstcolor_r, firstcolor_g, firstcolor_b = ColorFromNative(first_color)
@@ -995,9 +1036,10 @@
         end
         Undo_EndBlock2(0, "Color selected tracks with gradient colors", 1+4)
         col_tbl = nil                 
+        reaper.PreventUIRefresh(-1) 
       end
     else
-      reaper.MB( "Please select at least 3 tracks", "Can not create gradient colors", 0 )
+      reaper.MB( "Select at least 3 tracks", "Can't create gradient colors", 0 )
     end
   end
   
@@ -1031,7 +1073,7 @@
   -- COLOR CHILDS TO PARENTCOLOR -- Thanks to ChMaha for this function
    
   local function color_childs_to_parentcolor()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+    reaper.PreventUIRefresh(1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
     for i=0, CountSelectedTracks(0) -1 do
       track = GetSelectedTrack(0,i)
       trackcolor = GetMediaTrackInfo_Value(track, "I_CUSTOMCOLOR")
@@ -1046,6 +1088,7 @@
     end
     col_tbl = nil                 
     Undo_EndBlock2(0, "Set children to parent color", 1+4)
+    reaper.PreventUIRefresh(-1) 
   end
   
 
@@ -1095,7 +1138,8 @@
   
   
   function Color_items_to_track_color_in_shiny_mode(track, background_color)
-    for j=0, GetTrackNumMediaItems(track) -1 do 
+    reaper.PreventUIRefresh(1) 
+    for j=0, GetTrackNumMediaItems(track) -1 do
       local trackitem = GetTrackMediaItem(track, j)
       local take = GetActiveTake(trackitem) 
       if take then
@@ -1111,6 +1155,7 @@
         end
       end
     end
+    reaper.PreventUIRefresh(-1) 
   end
   
   
@@ -1140,11 +1185,11 @@
   -- COLOR MULTIPLE TRACKS TO PALETTE COLORS--
   
   local function Color_multiple_tracks_to_palette_colors()
-  
+    reaper.PreventUIRefresh(1) 
     local numbers = shuffled_numbers (120)
     local tr = GetSelectedTrack(0, 0)
     if not tr then
-      reaper.MB( "Please select at least 1 track", "Can not color tracks", 0 )
+      reaper.MB( "Select at least 1 track", "Can not color tracks", 0 )
       return
     end
     local first_ip = GetMediaTrackInfo_Value(tr, "IP_TRACKNUMBER")
@@ -1178,6 +1223,7 @@
     end
     Undo_EndBlock2(0, "Color multiple tracks to palette colors", 1+4)
     col_tbl, sel_tracks2, it_cnt_sw = nil, nil, nil                
+    reaper.PreventUIRefresh(-1) 
   end
     
     
@@ -1185,7 +1231,7 @@
   -- COLOR MULTIPLE TRACKS TO CUSTOM PALETTE  --
   
   local function Color_multiple_tracks_to_custom_palette()
-  
+    reaper.PreventUIRefresh(1) 
     local sel_tracks = CountSelectedTracks(0)
     if sel_tracks > 0 then
       local numbers = shuffled_numbers (24)
@@ -1219,6 +1265,7 @@
       Undo_EndBlock2(0, "Color multiple tracks to custom palette", 1+4)
       col_tbl, sel_tracks2, it_cnt_sw = nil, nil, nil                 
     end
+    reaper.PreventUIRefresh(-1) 
   end
 
   
@@ -1235,6 +1282,7 @@
     local state = GetProjectStateChangeCount(0)
     if not track_number2 then track_number2 = track_number end
     if track_number2 < track_number and new_track then
+      reaper.PreventUIRefresh(1) 
       Undo_BeginBlock2(0)
       local found = false 
       if stored_val and state2 == state then
@@ -1261,11 +1309,11 @@
       end
       track_number2, sel_tracks2, col_tbl = track_number, nil, nil
       Undo_EndBlock2(0, "Automatically color new tracks", 1)
+      reaper.PreventUIRefresh(-1) 
     elseif track_number2 > track_number then
       track_number2 = track_number
       col_tbl = nil 
     end
-
   end
   
   
@@ -1309,7 +1357,7 @@
     
     ImGui_PushStyleColor(ctx, ImGui_Col_Button(), HSV(h, s, v-0.2, a)) n=n+1
     ImGui_PushStyleColor(ctx, ImGui_Col_ButtonHovered(), HSV(h, s, v, a)) n=n+1
-    ImGui_PushStyleColor(ctx, ImGui_Col_ButtonActive(), HSV(h, s, v, a)) n=n+1
+    ImGui_PushStyleColor(ctx, ImGui_Col_ButtonActive(), HSV(h, s, v+0.2, a)) n=n+1
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_FrameRounding(),rounding) m=m+1
     if border == true then 
       ImGui_PushStyleColor(ctx, ImGui_Col_Border(), HSV(b_h, b_s, b_v, b_a))n=n+1
@@ -1394,25 +1442,24 @@
   end
   
   
-  
 --[[_______________________________________________________________________________
     _______________________________________________________________________________]]
   
 
+
   -- THE COLORPALETTE GUI--
 
   local function ColorPalette()
-    
-    local size
+
     local p_x, p_y = ImGui_GetWindowPos(ctx)
     local w, h = ImGui_GetWindowSize(ctx)
-    local max_button_w = (w-2*24)/25
+    local size = (w-2*24)/25
+    --[[
     if max_button_w *5+90 > h then
       size = (h-2*5-50)/6
     else
-      size = max_button_w
     end
-    
+    --]] 
     
     
     -- SAVE ALL TRACKS AND ITS COLORS TO A TABLE --
@@ -1429,7 +1476,7 @@
     
  
     local var = 0 
-    ImGui_PushStyleVar(ctx, ImGui_StyleVar_FrameRounding(), 6); var=var+1 -- for settings menu sliders
+    ImGui_PushStyleVar(ctx, ImGui_StyleVar_FrameRounding(), 5); var=var+1 -- for settings menu sliders
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_GrabRounding(), 2); var=var+1
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_PopupRounding(), 2); var=var+1
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 16); var=var+1
@@ -1445,6 +1492,8 @@
     ImGui_BeginMenuBar(ctx)
     if ImGui_BeginMenu(ctx, 'Settings') then
     
+      ImGui_Dummy(ctx, 0, 0)
+      rv, auto_trk = ImGui_Checkbox(ctx, "Autocolor new tracks", auto_trk)
       ImGui_AlignTextToFramePadding(ctx)
       ImGui_Text(ctx, 'Color new items to:')
       ImGui_PushItemWidth(ctx, 130)
@@ -1474,26 +1523,24 @@
    
       -- CHECKBOX FOR AUTO TRACK COLORING --
       
-      ImGui_Dummy(ctx, 0, 0)
-      rv, auto_trk = ImGui_Checkbox(ctx, "Autocolor new tracks", auto_trk)
+      --rv, auto_trk = ImGui_Checkbox(ctx, "Autocolor new tracks", auto_trk)
 
-      
-      -- BUTTON FOR PDF IN SETTINGS WINDOW --
-      ImGui_SameLine(ctx, 0, 20)
-      if ImGui_Button(ctx, 'How to use ShinyColors Mode', 180, 20) then
-        reaper.CF_ShellExecute('https://drive.google.com/file/d/1fnRfPrMjsfWTdJtjSAny39dWvJTOyni1/view?usp=share_link')
-      end
-      
 
       -- MODE SELECTION --
       
-      rv, selected_mode = ImGui_RadioButtonEx(ctx, 'Normal Mode', selected_mode, 0); ImGui_SameLine(ctx, 0 , 25)
-      if ImGui_RadioButtonEx(ctx, 'ShinyColors Mode (experimental)', selected_mode, 1) then
+      ImGui_AlignTextToFramePadding(ctx)
+      ImGui_Text(ctx, 'Mode:')
+      ImGui_SameLine(ctx, 0, 7)
+
+      
+      rv, selected_mode = ImGui_RadioButtonEx(ctx, 'Normal', selected_mode, 0); ImGui_SameLine(ctx, 0 , 25)
+      if ImGui_RadioButtonEx(ctx, 'ShinyColors (experimental)   ', selected_mode, 1) then
         if not dont_ask then
           ImGui_OpenPopup(ctx, 'ShinyColors Mode')
         else selected_mode = 1
         end
       end
+      
       
       
       -- SHINYCOLORS MODE POPUP --
@@ -1502,7 +1549,7 @@
       local center = {ImGui_Viewport_GetCenter(ImGui_GetWindowViewport(ctx))}
       ImGui_SetNextWindowPos(ctx, center[1], center[2], reaper.ImGui_Cond_Appearing(), 0.5, 0.5)
       if ImGui_BeginPopupModal(ctx, 'ShinyColors Mode', nil, reaper.ImGui_WindowFlags_AlwaysAutoResize()) then
-        ImGui_Text(ctx, 'To use the full potentual of ShinyColors Mode,\nmake sure Custom colors settings under "REAPER Preferences/ Audio peak/wavform appearance" \nare set correctly, or the actual used theme provides the value of 50 for tinttcp inside its rtconfig-file!\n\nMore Infos:')
+        ImGui_Text(ctx, 'To use the full potential of ShinyColors Mode,\nmake sure Custom colors settings under "REAPER Preferences/ Audio peak/wavform appearance" \nare set correctly, or the actual used theme provides the value of 50 for tinttcp inside its rtconfig.txt file!\n\nMore Info:')
         if ImGui_Button(ctx, 'Open PDF in browser', 200, 20) then
           reaper.CF_ShellExecute('https://drive.google.com/file/d/1fnRfPrMjsfWTdJtjSAny39dWvJTOyni1/view?usp=share_link')
         end
@@ -1523,44 +1570,60 @@
         ImGui_EndPopup(ctx)
       end
       
+      if ImGui_Button(ctx, 'How to use ShinyColors Mode PDF', 270, 20) then
+        reaper.CF_ShellExecute('https://drive.google.com/file/d/1fnRfPrMjsfWTdJtjSAny39dWvJTOyni1/view?usp=share_link')
+      end
+      ImGui_Dummy(ctx, 0, 0)
       ImGui_EndMenu(ctx)
-      
+
     end -- Settings Menu
+    
+      if selected_mode == 1 then
+        ImGui_SameLine(ctx, 60, w-200)
+        ImGui_Text(ctx, 'ShinyColors:')
+        ImGui_SameLine(ctx, 0, 3)
+        reaper.ImGui_RadioButtonEx(ctx, '##', selected_mode, 1)
+      end
+      
     ImGui_EndMenuBar(ctx)
     
     
     -- PALETTE MENU --
         
-    ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 10); var=var+1
+    ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 5); var=var+1 
     
     if button_action(0.555, 0.59, 0.6, 1, 'Palette Menu', 140, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
       openSettingWnd = true
     end
     
     if openSettingWnd then
-        local set_x
-        local set_h = 610
-        reaper.ImGui_SetNextWindowSize(ctx, 285, set_h, reaper.ImGui_Cond_Appearing())
-        local set_y = p_y +30
-        if set_y < 0 then
-          set_y = p_y + h 
-        end
-        if  p_x -300 < 0 then set_x = p_x + w +30 else set_x = p_x -300 end
-        
-        if not set_pos then
+      local set_x
+        local set_h 
+        reaper.ImGui_SetNextWindowSize(ctx, 236, 600, reaper.ImGui_Cond_Appearing()) 
+      local set_y = p_y +30
+      if set_y < 0 then
+        set_y = p_y + h 
+      end
+      if  p_x -300 < 0 then set_x = p_x + w +30 else set_x = p_x -300 end
+      
+      if not set_pos then
         reaper.ImGui_SetNextWindowPos(ctx, set_x, set_y, reaper.ImGui_Cond_Appearing())
-        end
-        
-        visible, openSettingWnd = ImGui_Begin(ctx, 'Palette Settings', true, reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoDocking())
-        if visible then
+      end
+      
+      visible, openSettingWnd = ImGui_Begin(ctx, 'Palette Settings', true, reaper.ImGui_WindowFlags_NoCollapse() | reaper.ImGui_WindowFlags_NoDocking())
+      if visible then
          
       
       -- GENERATE CUSTOM PALETTES -- 
       
-      ImGui_Text(ctx, 'CUSTOM PALETTE:')
       ImGui_Dummy(ctx, 0, 10)
-      ImGui_AlignTextToFramePadding(ctx)
-      ImGui_Text(ctx, 'Generate Custom Palette:')
+      ImGui_PushStyleColor(ctx, ImGui_Col_Text(), 0xffe8acff)
+      button_action(0, 0, 0, 0,'CUSTOM PALETTE:##set', 220, 19, true, 0, 0, 0, 0, 0, 0) 
+      ImGui_PopStyleColor(ctx, 1)
+      
+      rv, random_custom = ImGui_Checkbox(ctx, "Random coloring via button", random_custom)
+      ImGui_Dummy(ctx, 0, 10)
+      button_action(0, 0, 0, 0,'Generate Custom Palette:', 220, 19, true, 0, 0, 0, 0, 0, 0) 
       
       if button_action(0.555, 0.59, 0.6, 1, 'analogous', 220, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then 
         custom_palette_analogous()
@@ -1583,9 +1646,8 @@
       end
       
       ImGui_Dummy(ctx, 0, 10)
-      rv, random_custom = ImGui_Checkbox(ctx, "Random coloring for Custom Palette", random_custom)
          
-      if button_color(0.14, 0.9, 0.7, 1, 'Reset Custom', 160, 19, false, 6)  then
+      if button_color(0.14, 0.9, 0.7, 1, 'Reset Custom Palette', 220, 19, false, 3)  then 
         custom_palette = {}
         cust_tbl = nil
         for m = 0, 23 do
@@ -1593,20 +1655,27 @@
         end
       end
       
-      ImGui_Dummy(ctx, 0, 10)
       ImGui_Separator(ctx)
       
       
       -- MAIN PALETTE SETTINGS --
       
-      ImGui_Text(ctx, 'MAIN PALETTE:')
+      ImGui_Dummy(ctx, 0, 10)
+      ImGui_PushStyleColor(ctx, ImGui_Col_Text(), 0xffe8acff)
+      button_action(0, 0, 0, 0,'MAIN PALETTE:##set', 220, 19, true, 0, 0, 0, 0, 0, 0) 
+      ImGui_PopStyleColor(ctx, 1)
+      rv, random_main = ImGui_Checkbox(ctx, "Random coloring via button", random_main)
       ImGui_Dummy(ctx, 0, 10)
       
+      ImGui_AlignTextToFramePadding(ctx)
+      ImGui_Text(ctx, 'Color model:')
+      ImGui_SameLine(ctx, 0, 10) 
+
       if ImGui_RadioButtonEx(ctx, ' HSL', colorspace, 0) then
         colorspace = 0; lightness =0.7; darkness =0.20 
       end
             
-      ImGui_SameLine(ctx)
+      ImGui_SameLine(ctx, 0, 5) 
             
       if ImGui_RadioButtonEx(ctx, ' HSV', colorspace, 1) then
         colorspace = 1; lightness =1; darkness =0.3
@@ -1615,15 +1684,24 @@
       local lightness_range
       if colorspace == 1 then lightness_range = 1 else lightness_range = 1-0.2 end
       
-      rv, saturation = ImGui_SliderDouble(ctx, ' saturation', saturation, 0.3, 1.0, '%.3f', ImGui_SliderFlags_None())
-      rv,darkness, lightness = ImGui_SliderDouble2(ctx, ' darkness - lightness', darkness, lightness, 0.12, lightness_range)
+      ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 4)
+      button_action(0, 0, 0, 0,'saturation##set', 220, 19, true, 0, 0, 0, 0, 0, 0) 
+      ImGui_PopStyleVar(ctx, 1)
+      ImGui_PushItemWidth(ctx, 220)
+      rv, saturation = ImGui_SliderDouble(ctx, '##1', saturation, 0.3, 1.0, '%.3f', ImGui_SliderFlags_None())
+
+      ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 4)
+      button_action(0, 0, 0, 0,'darkness - lightness', 220, 19, true, 0, 0, 0, 0, 0, 0) 
+      ImGui_PopStyleVar(ctx, 1)
+      rv,darkness, lightness = ImGui_SliderDouble2(ctx, '##2', darkness, lightness, 0.12, lightness_range)
       
       ImGui_Dummy(ctx, 0, 10)
-      rv, random_main = ImGui_Checkbox(ctx, "Random coloring for Main Palette ", random_main)
-      
-      if button_color(0.14, 0.9, 0.7, 1, 'Reset Main', 160, 19, false, 6)  then
+
+      if button_color(0.14, 0.9, 0.7, 1, 'Reset Main Palette', 220, 19, false, 3)  then 
         saturation = 0.8; lightness =0.65; darkness =0.20; dont_ask = false; colorspace = 0
       end
+
+      ImGui_Separator(ctx)
           
       ImGui_End(ctx)
       set_pos = {ImGui_GetWindowPos(ctx)}
@@ -1635,31 +1713,12 @@
     -- UPPER RIGHT CORNER --
     
     -- MODE ELEMENT POSITION --
-    
-    local element_position
-    
-    if selected_mode == 1 then
-      if w-258 < 0 then element_position = 0 else element_position = w-413 end 
-    else
-      if w-258 < 0 then element_position = 0 else element_position = w-258 end 
-    end
-    
-    ImGui_SameLine(ctx, 0, element_position)
-    
-    local text
-    if selected_mode == 1 then text = 'ShinyColors Mode:  ' else text = '' end
-    ImGui_Text(ctx, text)
-    ImGui_SameLine(ctx, 0, 0)
-    if selected_mode == 1 then
-      ImGui_RadioButtonEx(ctx, '##', selected_mode, 1) 
-    end
-        
-    ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 12) var=var+1 --custom palette upper space
-    ImGui_SameLine(ctx, 0, 10)
-    
+    width2 = size*24+2*23
+
+    ImGui_SameLine(ctx, 155, width2-140-88)
     
     -- SELECTION TOOL UPPER RIGHT CORNER --
-    
+
     if items_mode == 0 then 
       tr_txt = 'Tracks'
       tr_txt_h = 0.555
@@ -1671,9 +1730,9 @@
       tr_txt_h = 0.555
     end
     
-    ImGui_PushStyleColor(ctx, ImGui_Col_Text(), 0xffe8acff)
+    ImGui_PushStyleColor(ctx, ImGui_Col_Text(), 0xffe8acff) col=col+1
     
-    if button_action(tr_txt_h, 0.5, 0.4, 1, tr_txt, 80, 19, true, 4, 0.555, 0.2, 0.3, 0.55, 3) then
+    if button_action(tr_txt_h, 0.5, 0.4, 1, tr_txt, 80, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 3) then
       -- create table for selected items, would be cool here
       if items_mode == 0 then 
         reaper.Main_OnCommand(40769, 0) 
@@ -1686,11 +1745,12 @@
         -- reselect items from saved selected items table, would be cool here
       end
     end
-    
-    ImGui_PopStyleColor(ctx)
+
+    ImGui_Dummy(ctx, 0, 1)
+
     ImGui_PopStyleVar(ctx, var) -- for upper part
     ImGui_PopStyleColor(ctx, col) -- for upper part
-
+    
 
     -- -- GENERATING TABLES -- --
     
@@ -1757,15 +1817,41 @@
       if highlight2 == false then
         palette_button_flags2 = palette_button_flags2 | ImGui_ColorEditFlags_NoBorder()
       end
+      
       if ImGui_ColorButton(ctx, '##palette2', custom_palette[m], palette_button_flags2, size, size) then
-        widgetscolorsrgba = (custom_palette[m]) -- needed for highlighting
-        coloring(cust_tbl.tr, cust_tbl.it, m)
+        if custom_palette[m] ~= HSL((m-1) / 24+0.69, 0.1, 0.2, 1) then
+          widgetscolorsrgba = custom_palette[m] -- needed for highlighting
+          coloring(cust_tbl.tr, cust_tbl.it, m)
+        else
+          ImGui_OpenPopupOnItemClick(ctx, 'Choose color', ImGui_PopupFlags_MouseButtonLeft())
+        end
       end
-      --VODKA
+      
+      local custom_color
+      local last_color
+      local ref_col
+      
+      local open_popup = ImGui_BeginPopup(ctx, 'Choose color')
+      if not open_popup then
+        ref_col = rgba
+      else
+        ref_col = ref_col
+      end
+      if open_popup then
+        got_color, rgba = ImGui_ColorPicker4(ctx, 'Current', rgba, 0, ref_col)
+        if got_color then
+          custom_color = rgba
+          widgetscolorsrgba = rgba
+          custom_palette[m] = rgba 
+          cust_tbl = nil 
+        end
+        ImGui_EndPopup(ctx)
+      end
+      
       if reaper.ImGui_IsItemClicked(ctx, reaper.ImGui_MouseButton_Right()) then
         custom_palette[m] = HSL((m-1) / 24+0.69, 0.1, 0.2, 1)
       end
-      --VODKA END
+      
       if highlight2 == true then
         ImGui_PopStyleColor(ctx,1)
         ImGui_PopStyleVar(ctx,1)
@@ -1784,13 +1870,14 @@
       ImGui_PopID(ctx)
     end
     
+    ImGui_PushStyleColor(ctx, ImGui_Col_Text(), 0xffe8acff)
     ImGui_PopStyleVar(ctx,1)
-    ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, -2)
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_SeparatorTextBorderSize(),3) 
-    ImGui_PushStyleVar (ctx, reaper.ImGui_StyleVar_SeparatorTextAlign(),1, 1)
-    --ImGui_SeparatorText(ctx, 'Custom Palette')
-    ImGui_SeparatorText(ctx, '')
-    ImGui_PopStyleVar(ctx,3)
+    ImGui_PushStyleVar (ctx, reaper.ImGui_StyleVar_SeparatorTextAlign(), 0.99, 0.5)
+    ImGui_SeparatorText(ctx, ' Custom Palette ')
+    ImGui_PopStyleVar(ctx, 2)
+
+    ImGui_PopStyleColor(ctx,1)
 
 
     -- CUSTOM COLOR WIDGET --
@@ -1821,7 +1908,6 @@
       end
       ImGui_EndPopup(ctx)
     end
-    
     ImGui_SameLine(ctx, -1, 156) -- overlapping items
     
     
@@ -1836,13 +1922,14 @@
       coloring_cust_col(rgba)
       widgetscolorsrgba = rgba --is it needed anymore? yes, for being last color
     end
+
     custom_color = rgba
     
     --Drag and Drop--
     if ImGui_BeginDragDropTarget(ctx) then
       local rv,drop_color = ImGui_AcceptDragDropPayloadRGBA(ctx)
       if rv then
-        rgba = drop_color 
+        rgba = drop_color
       end
       reaper.ImGui_EndDragDropTarget(ctx)
     end
@@ -1851,7 +1938,6 @@
                    ImGui_ColorEditFlags_DisplayHSV()
                   |ImGui_ColorEditFlags_NoSmallPreview()
                   |ImGui_ColorEditFlags_NoBorder()
-                  |ImGui_ColorEditFlags_NoDragDrop()
                   |ImGui_ColorEditFlags_NoInputs()
     
     if widgetscolorsrgba then
@@ -1859,13 +1945,13 @@
     else
       last_color = custom_color
     end
-   
+    
     
     -- LAST TOUCHED --
     
     ImGui_SameLine(ctx, 0.0, 17)
     ImGui_AlignTextToFramePadding(ctx)
-    ImGui_Text(ctx, 'Last touched:')
+    ImGui_Text(ctx,'Last touched:')
     ImGui_SameLine(ctx, 0.0, 6)
     
     if ImGui_ColorButton(ctx, 'Apply last color##6', last_color, custom_color_flags, 21, 21) then
@@ -1875,12 +1961,11 @@
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, -7)
     ImGui_Dummy(ctx,0,0)
     ImGui_PushStyleColor(ctx, ImGui_Col_Text(), 0xffe8acff)
-    ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 2)
+    ImGui_PushStyleVar(ctx, ImGui_StyleVar_ItemSpacing(), 0, 4)
     ImGui_PushStyleVar(ctx, ImGui_StyleVar_SeparatorTextBorderSize(),3)
-    ImGui_PushStyleVar (ctx, reaper.ImGui_StyleVar_SeparatorTextAlign(),1, 0)
-    ImGui_PushStyleVar (ctx, reaper.ImGui_StyleVar_SeparatorTextPadding(),40, 4)
-    ImGui_SeparatorText(ctx, 'Main Palette')
-    ImGui_PopStyleVar(ctx,5)
+    ImGui_PushStyleVar (ctx, reaper.ImGui_StyleVar_SeparatorTextAlign(), 0.99, 0.5)
+    ImGui_SeparatorText(ctx, '   Main Palette   ')
+    ImGui_PopStyleVar(ctx,4) 
     
     ImGui_PopStyleColor(ctx, 1) 
 
@@ -1918,7 +2003,7 @@
     -- MAIN PALETTE BUTTONS --
       
       if ImGui_ColorButton(ctx, '##palette', main_palette[n], palette_button_flags, size, size) then
-        widgetscolorsrgba = (main_palette[n]) -- is it needed anymore? Yes, for highlighting!!
+        widgetscolorsrgba = main_palette[n] -- is it needed anymore? Yes, for highlighting!!
         coloring(pal_tbl.tr, pal_tbl.it, n)
       end
       
@@ -1942,42 +2027,49 @@
     
     local bttn_h = 0.644
     local bttn_s = 0.45
-    local bttn_v = 0.96
-    
+    local bttn_v = 0.78
+    local bttn_h2 = 0.466 -- not in use
+    local bttn_v2 = 0.60 -- not in use
+  
     local br_h = 0.558
     local br_s = 0.4
     local br_v = 0.3
-    local bttn_width = (w-4*8-40)/5
-    local bttn_height = h/8
+    
+    -- button calculations ..
+    divider = 14
+    local bttn_gap = width2/(divider*5-1)
+    local bttn_width = (width2/(divider*5-1))*(divider-1)
+    local bttn_height = h/8.2
     
     
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(),0xffffffff)
     
-
-   if button_action(bttn_h, bttn_s, bttn_v, 1, 'Reset selected to\n    default color', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
-     Reset_to_default_color()
-   end
-   
-   ImGui_SameLine(ctx, 0.0, 12)
-   if button_action(bttn_h, bttn_s, bttn_v, 1, 'Color children\n     to parent', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
-     color_childs_to_parentcolor() 
-   end
-
-    ImGui_SameLine(ctx, 0.0, 12)
+    ImGui_PushStyleColor(ctx, ImGui_Col_Text(),0xffffffff)
+    
+    if button_action(bttn_h, bttn_s, bttn_v, 1,  'Set selected to\n  default color', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then
+      Reset_to_default_color()
+    end
+    
+    ImGui_SameLine(ctx, 0.0, bttn_gap)
+    
+    if button_action(bttn_h, bttn_s, bttn_v, 1, 'Color children\n     to parent', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
+      color_childs_to_parentcolor() 
+    end
+    
+    ImGui_SameLine(ctx, 0.0, bttn_gap)
     if button_action(bttn_h, bttn_s, bttn_v, 1, ' Color tracks\n  to gradient', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
       Color_selected_tracks_with_gradient()
     end
     
-    ImGui_SameLine(ctx, 0.0, 12)
+    ImGui_SameLine(ctx, 0.0, bttn_gap)
     if button_action(bttn_h, bttn_s, bttn_v, 1, 'Color tracks to\n  main palette', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
       Color_multiple_tracks_to_palette_colors() 
     end
     
-    ImGui_SameLine(ctx, 0.0, 12)
+    ImGui_SameLine(ctx, 0.0, bttn_gap)
     if button_action(bttn_h, bttn_s, bttn_v, 1, '  Color tracks to\n  custom palette ', bttn_width, bttn_height, true, 5,  br_h, br_s, br_v, 0.55, 5) then 
       Color_multiple_tracks_to_custom_palette()
     end
-
+    
     reaper.ImGui_PopStyleColor(ctx)
       
   end -- END OF GUI
