@@ -1,7 +1,13 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.7.9
+-- @version 0.8
 -- @changelog
+--
+-- 0.8
+--   Bug fixes:
+--     > Tooltip bug fix for Palette Menu (p=2746078)
+--
+-- 0.7.9
 --   NEW features:
 --     > Save/Load Custom Palettes
 --     > Show/Hide Sections
@@ -2390,27 +2396,30 @@
         ImGui.EndCombo(ctx)
       end
       
-      if reaper.ImGui_IsItemHovered(ctx) or combo then
-        local x, y = reaper.GetMousePosition()
-        if combo and hovered_preset ~= ' ' and x > 0 then 
-          for p, c in utf8.codes(hovered_preset) do 
-            if c > 255 or string.len(hovered_preset) > 30 then 
-              reaper.TrackCtl_SetToolTip( hovered_preset, x, y+sys_offset, 0 )
-              break
-            else
-              reaper.TrackCtl_SetToolTip( '', 0, 0, 0 )
+      if reaper.ImGui_IsWindowHovered(ctx, reaper.ImGui_FocusedFlags_ChildWindows()) then
+        if reaper.ImGui_IsItemHovered(ctx) or combo then
+          local x, y = reaper.GetMousePosition()
+          if combo and hovered_preset ~= ' ' and x > 0 then 
+          --if hovered_preset ~= ' ' and x > 0 then 
+            for p, c in utf8.codes(hovered_preset) do 
+              if c > 255 or string.len(hovered_preset) > 30 then 
+                reaper.TrackCtl_SetToolTip( hovered_preset, x, y+sys_offset, 0 )
+                break
+              else
+                reaper.TrackCtl_SetToolTip( '', 0, 0, 0 )
+              end
+            end
+          elseif x > 0 then
+            for p, c in utf8.codes(user_palette[current_item]) do 
+              if c > 255 or string.len(user_palette[current_item]) > 30 then 
+                reaper.TrackCtl_SetToolTip( user_palette[current_item], x, y+sys_offset, 0 )
+                break
+              end
             end
           end
-        elseif x > 0 then
-          for p, c in utf8.codes(user_palette[current_item]) do 
-            if c > 255 or string.len(user_palette[current_item]) > 30 then 
-              reaper.TrackCtl_SetToolTip( user_palette[current_item], x, y+sys_offset, 0 )
-              break
-            end
-          end
+        else
+          reaper.TrackCtl_SetToolTip( '', 0, 0, 0 )
         end
-      else
-        reaper.TrackCtl_SetToolTip( '', 0, 0, 0 )
       end
       
       if differs and current_item > 1 and not stop and differs2 == 1 then
@@ -3286,4 +3295,3 @@
   defer(loop)
   
   reaper.atexit(save_current_settings)
-
