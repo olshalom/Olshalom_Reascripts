@@ -2,12 +2,11 @@
 -- @author olshalom, vitalker
 -- @version 0.8.0
 -- @changelog
---
--- 0.8
+--   0.8.0
 --   Bug fixes:
 --     > Tooltip bug fix for Palette Menu (p=2746078)
 --
--- 0.7.9
+--   0.7.9
 --   NEW features:
 --     > Save/Load Custom Palettes
 --     > Show/Hide Sections
@@ -49,7 +48,7 @@
   ]]
   
 
-
+  
   local script_name = 'Chroma - Coloring Tool'
   if not reaper.APIExists('ImGui_CreateContext') then
     reaper.ShowMessageBox('Install\nReaImGui: ReaScript binding for Dear ImGui\nto make the script work', script_name, 0)
