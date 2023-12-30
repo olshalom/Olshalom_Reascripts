@@ -1,6 +1,6 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.8
+-- @version 0.8.0
 -- @changelog
 --
 -- 0.8
@@ -49,7 +49,7 @@
   ]]
   
 
-  
+
   local script_name = 'Chroma - Coloring Tool'
   if not reaper.APIExists('ImGui_CreateContext') then
     reaper.ShowMessageBox('Install\nReaImGui: ReaScript binding for Dear ImGui\nto make the script work', script_name, 0)
