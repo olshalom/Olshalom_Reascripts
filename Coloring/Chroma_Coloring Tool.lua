@@ -1,7 +1,16 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.8.0
+-- @version 0.8.1
 -- @changelog
+--   0.8.1
+--   NEW features:
+--     > Save/Load Main Palette Presets
+--     > Improved saving of "Last unsaved" presets (backup)
+--  
+--   Appearance:
+--     > Redesigned Menubar
+
+
 --   0.8.0
 --   Bug fixes:
 --     > Tooltip bug fix for Palette Menu (p=2746078)
@@ -47,19 +56,41 @@
   
   ]]
   
-
   
+  
+  local OS = reaper.GetOS()
+  local sys_offset 
+  if OS:find("OSX") or OS:find("macOS") then
+    sys_offset = 0
+  else 
+    sys_offset = 30
+  end
+  
+  
+  
+  local function OpenURL(url)
+    if type(url)~="string" then return false end
+    if OS=="OSX32" or OS=="OSX64" or OS=="macOS-arm64" then
+      os.execute("open ".. url)
+    elseif OS=="Other" then
+      os.execute("xdg-open "..url)
+    else
+      os.execute("start ".. url)
+    end
+    return true
+  end
+  
+  
+
   local script_name = 'Chroma - Coloring Tool'
   if not reaper.APIExists('ImGui_CreateContext') then
     reaper.ShowMessageBox('Install\nReaImGui: ReaScript binding for Dear ImGui\nto make the script work', script_name, 0)
     if reaper.APIExists('ReaPack_BrowsePackages') then
       reaper.ReaPack_BrowsePackages('ReaImGui: ReaScript binding for Dear ImGui')
+      return
     else
-      if reaper.APIExists('CF_ShellExecute') then
-        reaper.CF_ShellExecute('https://forum.cockos.com/showthread.php?t=250419')
-      else
-        reaper.ShowConsoleMsg('ReaImGui thread on Cockos Forums:\nhttps://forum.cockos.com/showthread.php?t=250419')
-      end
+      OpenURL('https://forum.cockos.com/showthread.php?t=250419')
+      return
     end
   end
   
@@ -257,6 +288,8 @@
   local auto_palette
   local sel_tab
   local userpalette = {}
+  local user_mainpalette = {}
+  local user_main_settings = {}
   
  
 
@@ -319,23 +352,36 @@
   local show_lasttouched      
   local show_mainpalette
   local hovered_preset = ' '
+  local hovered_main_preset = ' '
   local sys_offset
+  local draw_thickness
+  local set_pos
+  local sat_true
+  local contrast_true
+  local current_main_item
+  local combo_preview_value
+  local not_inst
+  local stop
+  local stop2
+  local main_combo_preview_value
+  local differs
+  local differs2
+  local differs3
+  local yes_undo
+  local _
 
   -- CONSOLE OUTPUT --
   
   local function Msg(param)
     reaper.ShowConsoleMsg(tostring(param).."\n")
   end
-  
-  
-  
-  osname = reaper.GetOS()
-  if osname:find("OSX") or osname:find("macOS") then
-    sys_offset = 0
-  else 
-    sys_offset = 30
-  end
  
+ 
+ 
+  if not reaper.APIExists('SNM_GetIntConfigVar') then
+    not_inst = true
+  end
+  
   
   
   -- Thanks to Sexan for the next two functions -- 
@@ -542,7 +588,6 @@
     if reaper.GetExtState(script_name, "tree_node_open_save2") == "true" then tree_node_open2 = true end
   else tree_node_open2 = false end
   
-  
   if reaper.HasExtState(script_name, "user_palette") then
     local serialized2 = reaper.GetExtState(script_name, "user_palette")
     user_palette = stringToTable(serialized2) 
@@ -551,10 +596,45 @@
     reaper.SetExtState(script_name , 'userpalette.*Last unsaved*',  table.concat(custom_palette,","),true)
   end
 
-  
   if reaper.HasExtState(script_name, "current_item") then
-    current_item           = tonumber(reaper.GetExtState(script_name, "current_item"))
+    current_item = tonumber(reaper.GetExtState(script_name, "current_item"))
   else current_item = 1 end
+  
+  if reaper.HasExtState(script_name, "user_mainpalette") then
+    local serialized2 = reaper.GetExtState(script_name, "user_mainpalette")
+    user_mainpalette = stringToTable(serialized2) 
+  else
+    insert(user_mainpalette, '*Last unsaved*')
+    user_main_settings = {}
+    user_main_settings[1] = colorspace
+    user_main_settings[2] = saturation
+    user_main_settings[3] = lightness
+    user_main_settings[4] = darkness
+    local serialized = serializeTable(user_mainpalette)
+    reaper.SetExtState(script_name , 'user_mainpalette', serialized, true )
+    reaper.SetExtState(script_name , 'usermainpalette.*Last unsaved*',  table.concat(user_main_settings,","),true)
+  end
+  
+  if reaper.HasExtState(script_name, "current_main_item") then
+    current_main_item = tonumber(reaper.GetExtState(script_name, "current_main_item"))
+    if current_main_item == nil then current_main_item = 1 end
+  else current_main_item = 1 end
+  
+  if reaper.HasExtState(script_name, "stop") then
+    if reaper.GetExtState(script_name, "stop") == "false" then stop = false end
+    if reaper.GetExtState(script_name, "stop") == "true" then
+      stop = true 
+      new_combo_preview_value = user_palette[current_item]..' (modified)'
+    end
+  else stop = false end
+  
+  if reaper.HasExtState(script_name, "stop2") then
+    if reaper.GetExtState(script_name, "stop2") == "false" then stop2 = false end
+    if reaper.GetExtState(script_name, "stop2") == "true" then 
+      stop2 = true 
+      main_combo_preview_value = user_mainpalette[current_main_item]..' (modified)'
+    end
+  else stop2 = false end
   
 
 
@@ -605,10 +685,11 @@
     end
     if not generated_color then 
       reaper.ShowMessageBox("Drag a color from the MAIN Palette to the first CUSTOM Palette color box.", "Important info", 0 )
+    else
+      generated_color, differs, differs2, stop = nil, current_item, 1, nil
+      cust_tbl = nil
+      return custom_palette
     end
-    generated_color, differs, differs2 = nil, current_item, 1
-    cust_tbl = nil
-    return custom_palette
   end
   
   
@@ -648,7 +729,7 @@
     if not generated_color then 
       reaper.ShowMessageBox("Drag a color from the MAIN Palette to the first CUSTOM Palette color box.", "Important info", 0 )
     end
-    generated_color, differs, differs2 = nil, current_item, 1
+    generated_color, differs, differs2, stop = nil, current_item, 1, nil
     cust_tbl = nil
     return custom_palette
   end
@@ -690,7 +771,7 @@
     if not generated_color then 
       reaper.ShowMessageBox("Drag a color from the MAIN Palette to the first CUSTOM Palette color box.", "Important info", 0 )
     end
-    generated_color, differs, differs2 = nil, current_item, 1
+    generated_color, differs, differs2, stop = nil, current_item, 1, nil
     cust_tbl = nil
     return custom_palette
   end
@@ -732,7 +813,7 @@
     if not generated_color then 
       reaper.ShowMessageBox("Drag a color from the MAIN Palette to the first CUSTOM Palette color box.", "Important info", 0 )
     end
-    generated_color, differs, differs2 = nil, current_item, 1
+    generated_color, differs, differs2, stop = nil, current_item, 1, nil
     cust_tbl = nil
     return custom_palette
   end
@@ -774,7 +855,7 @@
     if not generated_color then 
       reaper.ShowMessageBox("Drag a color from the MAIN Palette to the first CUSTOM Palette color box.", "Important info", 0 )
     end
-    generated_color, differs, differs2 = nil, current_item, 1
+    generated_color, differs, differs2, stop = nil, current_item, 1, nil
     cust_tbl = nil
     return custom_palette
   end
@@ -813,6 +894,7 @@
     return main_color
   end
 
+  
   
   -- HIGHLIGHTING ITEMS OR TRACK COLORS -- 
   
@@ -1811,7 +1893,51 @@
     ImGui.PopStyleVar(ctx, m)
     return state
   end
-    
+  
+  function get_last_context()
+    local left_click = r.JS_Mouse_GetState(1)
+    local right_click = r.JS_Mouse_GetState(2)
+    if (left_click == 1 and last_left_click ~= 1) or (right_click == 2 and last_right_click ~= 2) then
+      local window, segment, details = r.BR_GetMouseCursorContext()
+      if window ~= 'unknown' then
+        manager_focus = 0
+        if window == 'tcp' or window == 'mcp' then
+          target_button = last_track_state
+        elseif window == 'arrange' then
+          target_button = last_item_state
+        elseif window == 'ruler' then
+          if segment == 'marker_lane' then
+            target_button = 6
+            last_marker_state = 6
+          elseif segment == 'region_lane' then
+            target_button = 7
+            last_marker_state = 7
+          else
+            target_button = last_marker_state
+          end
+        end
+      else
+        -- If unknown, get focus hwnd and parent
+        local hwnd_focus = r.JS_Window_GetFocus()
+        if hwnd_focus then
+          local hwnd_focus_parent = r.JS_Window_GetParent(hwnd_focus)
+          if hwnd_focus_parent then
+            local hwnd_focus_parent_title = r.JS_Window_GetTitle(hwnd_focus_parent)
+            if hwnd_focus_parent_title == trackmanager_title then
+              hwnd_tracks = hwnd_focus_parent
+              manager_focus, target_button = 2,2
+            elseif hwnd_focus_parent_title == regionmanager_title then
+              hwnd_regions = hwnd_focus_parent
+              manager_focus, target_button = 1,8
+            end
+          end
+        end
+      end
+    end
+    last_left_click = left_click
+    last_right_click = right_click
+  end
+
 
 
   -- PALETTE FUNCTION --
@@ -1962,6 +2088,7 @@
   end
 
   
+  
   function item_track_color_to_custom_palette(m)
   
     local sel_colorcnt
@@ -1972,13 +2099,651 @@
       custom_palette[calc] = sel_color[i]
     end
     cust_tbl = nil
-    differs = current_item
+    differs, differs2, stop = current_item, 1, nil
+  end
+
+  
+  -- USER CUSTOM PALETTE BUTTON FUNCTIONS --
+  
+  local function SaveCustomPaletteButton()
+  
+    local retval, retvals_csv = reaper.GetUserInputs('Set a new preset name', 1, 'Enter name:, extrawidth=300', user_palette[current_item]) 
+    if retval and retvals_csv ~= '' and retvals_csv ~= '*Last unsaved*' then
+      local index = #user_palette+1
+      local preset_found
+      for i = 1, #user_palette do
+        if string.gsub(retvals_csv, '^%s*(.-)%s*$', '%1') == string.gsub(user_palette[i], '^%s*(.-)%s*$', '%1') then
+          preset_found = 1 
+          restore = reaper.ShowMessageBox('Do you want to overwrite the preset?', 'PRESET ALREADY EXISTS', 1)
+          if restore == 1 then
+            index = i
+            user_palette[index] = retvals_csv
+            local serialized = serializeTable(user_palette)
+            reaper.SetExtState(script_name , 'user_palette', serialized, true )
+            reaper.SetExtState(script_name , 'userpalette.'..tostring(retvals_csv),  table.concat(custom_palette,","),true)
+            current_item, stop, differs = index, false, index
+          end
+        end
+      end
+  
+      if not preset_found then 
+        differs2 = nil 
+        user_palette[index] = retvals_csv
+        --if index == 2 then user_palette[1] = '*Last unsaved*' end
+        local serialized = serializeTable(user_palette)
+        reaper.SetExtState(script_name , 'user_palette', serialized, true )
+        reaper.SetExtState(script_name , 'userpalette.'..tostring(retvals_csv),  table.concat(custom_palette,","),true)
+        current_item = index
+      end
+      stop, new_combo_preview_value, combo_preview_value = false, nil, nil
+    end
+  end
+  
+  
+  
+  local function DeleteCustomPalettePreset()
+  
+    if #user_palette > 1 and current_item > 1 then
+      if new_combo_preview_value then
+        reaper.SetExtState(script_name, 'userpalette.*Last unsaved*', table.concat(custom_palette,","),true)
+      end
+      reaper.DeleteExtState( script_name, 'userpalette.'..tostring(user_palette[current_item]), true )
+      table.remove(user_palette, current_item)
+      local serialized = serializeTable(user_palette)
+      reaper.SetExtState(script_name , 'user_palette', serialized, true )
+      if current_item > #user_palette then current_item = current_item - 1 end
+      custom_palette = {} 
+      if reaper.HasExtState(script_name, 'userpalette.'..tostring(user_palette[current_item])) then
+        for i in string.gmatch(reaper.GetExtState(script_name, 'userpalette.'..tostring(user_palette[current_item])), "[^,]+") do
+          insert(custom_palette, tonumber(string.match(i, "[^,]+")))
+        end
+      end
+      new_combo_preview_value, combo_preview_value, differs, stop = nil, nil, current_item, false
+      cust_tbl = nil
+    end
   end
         
+       
+        
+  local function CustomPaletteUserPreset()
+    --Placeholder -- maybe put the relating content here for organization
+  end
+  
+
+  
+  -- USER MAIN PALETTE BUTTON FUNCTIONS --
+  
+
+  local function generate_user_main_settings()
+    user_main_settings = {}
+    user_main_settings[1] = colorspace
+    user_main_settings[2] = saturation
+    user_main_settings[3] = lightness
+    user_main_settings[4] = darkness
+    return user_main_settings
+  end
+  
+  
+  
+  local function SaveMainPalettePreset()
+    
+    local retval_main, retvals_csv_main = reaper.GetUserInputs('Set a new mainpreset name', 1, 'Enter name:, extrawidth=300', user_mainpalette[current_main_item]) 
+    if retval_main and retvals_csv_main ~= '' and retvals_csv ~= '*Last unsaved*' then
+      local index = #user_mainpalette+1
+      local preset_found
+      for i = 1, #user_mainpalette do
+        if string.gsub(retvals_csv_main, '^%s*(.-)%s*$', '%1') == string.gsub(user_mainpalette[i], '^%s*(.-)%s*$', '%1') then
+          preset_found = 1 
+          restore = reaper.ShowMessageBox('Do you want to overwrite the preset?', 'PRESET ALREADY EXISTS', 1)
+          if restore == 1 then
+            index = i
+            user_mainpalette[index] = retvals_csv_main
+            local serialized = serializeTable(user_mainpalette)
+            reaper.SetExtState(script_name , 'user_mainpalette', serialized, true )
+            reaper.SetExtState(script_name , 'usermainpalette.'..tostring(retvals_csv_main),  table.concat(user_main_settings,","),true)
+            current_main_item, stop2, differs3 = index, false, index
+          end
+        end
+      end
+  
+      if not preset_found then 
+        differs4 = nil 
+        user_mainpalette[index] = retvals_csv_main
+        --if index == 2 then user_mainpalette[1] = '*Last unsaved*' end
+        local serialized = serializeTable(user_mainpalette)
+        reaper.SetExtState(script_name , 'user_mainpalette', serialized, true )
+        reaper.SetExtState(script_name , 'usermainpalette.'..tostring(retvals_csv_main),  table.concat(user_main_settings,","),true)
+        current_main_item = index
+      end
+      main_new_combo_preview_value, main_combo_preview_value, stop2 = nil, nil, false
+    end
+  end
+  
+  
+  
+  local function DeleteMainPalettePreset()
+    if #user_mainpalette > 1 and current_main_item > 1 then
+      reaper.DeleteExtState( script_name, 'usermainpalette.'..tostring(user_mainpalette[current_main_item]), true )
+      table.remove(user_mainpalette, current_main_item)
+      local serialized = serializeTable(user_mainpalette)
+      reaper.SetExtState(script_name , 'user_mainpalette', serialized, true )
+      if current_main_item > #user_mainpalette then current_main_item = current_main_item - 1 end
+  
+      user_main_settings = {} 
+      if reaper.HasExtState(script_name, 'usermainpalette.'..tostring(user_mainpalette[current_main_item])) then
+        for i in string.gmatch(reaper.GetExtState(script_name, 'usermainpalette.'..tostring(user_mainpalette[current_main_item])), "[^,]+") do
+          insert(user_main_settings, tonumber(string.match(i, "[^,]+")))
+        end
+        colorspace =user_main_settings[1] 
+        saturation = user_main_settings[2] 
+        lightness = user_main_settings[3] 
+        darkness = user_main_settings[4]
+      end
+      differs3, stop2, main_new_combo_preview_value, main_combo_preview_value = current_main_item, false, nil, nil
+    end
+  end
+    
+        
+        
+  local function MainPaletteUserPreset()
+    --Placeholder -- maybe put the relating content here for organization 
+  end
+  
+  
+  
+  -- PALETTE MENU WINDOW --
+  
+  local function PaletteMenu(p_y, p_x, w)
+  
+    local set_x
+    local set_h 
+    ImGui.SetNextWindowSize(ctx, 236, 740, ImGui.Cond_Appearing()) 
+    local set_y = p_y +30
+    if set_y < 0 then
+      set_y = p_y + h 
+    end
+    if  p_x -300 < 0 then set_x = p_x + w +30 else set_x = p_x -300 end
+    
+    if not set_pos then
+      ImGui.SetNextWindowPos(ctx, set_x, set_y, ImGui.Cond_Appearing())
+    end
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 5)
+    visible, openSettingWnd = ImGui.Begin(ctx, 'Palette Menu', true, ImGui.WindowFlags_NoCollapse() | ImGui.WindowFlags_NoDocking()) 
+    if visible then
+    
+      -- GENERATE CUSTOM PALETTES -- 
+      
+      local space_btwn = 8
+      
+      ImGui.Dummy(ctx, 0, 2)
+      ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffe8acff)
+      button_action(0, 0, 0, 0,'CUSTOM PALETTE:##set', 220, 19, true, 0, 0, 0, 0, 0, 0) 
+      ImGui.PopStyleColor(ctx, 1)
+      
+      ImGui.Dummy(ctx, 0, space_btwn)
+      button_action(0, 0, 0, 0,'Generate Custom Palette:', 220, 19, true, 0, 0, 0, 0, 0, 0) 
+      
+      if button_action(0.555, 0.59, 0.6, 1, 'analogous', 220, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then 
+        custom_palette_analogous()
+      end
+      
+      if button_action(0.555, 0.59, 0.6, 1, 'triadic', 220, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then 
+        custom_palette_triadic()
+      end
+      
+      if button_action(0.555, 0.59, 0.6, 1, 'complementary', 220, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then 
+        custom_palette_complementary()
+      end
+          
+      if button_action(0.555, 0.59, 0.6, 1, 'split complementary', 220, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then 
+        custom_palette_split_complementary()
+      end
+          
+      if button_action(0.555, 0.59, 0.6, 1, 'double split complementary', 220, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then 
+        custom_palette_double_split_complementary()
+      end
+      
+      ImGui.Dummy(ctx, 0, space_btwn)
+      button_action(0, 0, 0, 0,'Custom Presets:', 220, 19, true, 0, 0, 0, 0, 0, 0) 
+      
+      
+     
+      -- SAVING USER CUSTOM PALETTE PRESETS --
+      
+      -- SAVE BUTTON --
+      
+      if button_action(0.555, 0.59, 0.6, 1, 'Save', 90, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
+        SaveCustomPaletteButton()
+      end
+        
+      -- DELETE BUTTON --
+      
+      ImGui.SameLine(ctx, 0,38)
+      if button_action(0.555, 0.59, 0.6, 1, 'Delete', 90, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
+        DeleteCustomPalettePreset()
+      end
+      
+      -- USER PALETTE MENU COMBO BOX --
+
+      if not stop and not combo_preview_value then
+        combo_preview_value = user_palette[current_item]
+      elseif not combo_preview_value then
+        combo_preview_value = new_combo_preview_value
+      end
+        
+      ImGui.PushItemWidth(ctx, 220)
+      local combo = ImGui.BeginCombo(ctx, '##6', combo_preview_value, 0) 
+      if combo then 
+        for i,v in ipairs(user_palette) do
+          local is_selected = current_item == i
+          if ImGui.Selectable(ctx, user_palette[i], is_selected, ImGui.SelectableFlags_None(),  300.0,  0.0) then
+            current_item = i
+            if new_combo_preview_value and current_item ~= 1 then
+              reaper.SetExtState(script_name, 'userpalette.*Last unsaved*', table.concat(custom_palette,","),true)
+            end
+            
+            custom_palette = {} 
+            if reaper.HasExtState(script_name, 'userpalette.'..tostring(user_palette[i])) then
+              for i in string.gmatch(reaper.GetExtState(script_name, 'userpalette.'..tostring(user_palette[i])), "[^,]+") do
+                insert(custom_palette, tonumber(string.match(i, "[^,]+")))
+              end
+            end
+            stop, new_combo_preview_value, combo_preview_value = false, nil, nil
+            cust_tbl = nil
+          end
+          
+          if reaper.ImGui_IsItemHovered(ctx) then
+            hovered_preset = v
+          end
+          -- Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+          if is_selected then
+            ImGui.SetItemDefaultFocus(ctx)
+          end
+        end
+        ImGui.EndCombo(ctx)
+      end
+      
+      if reaper.ImGui_IsWindowHovered(ctx, reaper.ImGui_FocusedFlags_ChildWindows()) then
+        local x, y = reaper.GetMousePosition()
+        if reaper.ImGui_IsItemHovered(ctx) or combo then
+          if combo and hovered_preset ~= ' ' and x > 0 then 
+            for p, c in utf8.codes(hovered_preset) do 
+              if c > 255 or string.len(hovered_preset) > 30 then 
+                reaper.TrackCtl_SetToolTip( hovered_preset, x, y+sys_offset, 0 )
+                break
+              else
+                reaper.TrackCtl_SetToolTip( '', 0, 0, 0 )
+              end
+            end
+          elseif x > 0 then
+            for p, c in utf8.codes(user_palette[current_item]) do 
+              if c > 255 or string.len(user_palette[current_item]) > 30 then 
+                reaper.TrackCtl_SetToolTip( user_palette[current_item], x, y+sys_offset, 0 )
+                break
+              end
+            end
+          end
+        else
+          reaper.TrackCtl_SetToolTip( '', 0, 0, 0 )
+        end
+      end
+
+      if differs and not stop and differs2 == 1 then
+        new_combo_preview_value = user_palette[current_item]..' (modified)'
+        stop, differs2, combo_preview_value = true, nil, nil
+      end
+      
+      
+      ImGui.Dummy(ctx, 0, space_btwn)
+      _, random_custom = ImGui.Checkbox(ctx, "Random coloring via button##1", random_custom)
+      
+      if button_color(0.14, 0.9, 0.7, 1, 'Reset Custom Palette', 220, 19, false, 3)  then 
+        custom_palette = {}
+        cust_tbl = nil
+        for m = 0, 23 do
+          insert(custom_palette, HSL(m / 24+0.69, 0.1, 0.2, 1))
+        end
+      end
+      
+      ImGui.Separator(ctx)
+      ImGui.Dummy(ctx, 0, space_btwn)
+      
+      
+      -- MAIN PALETTE SETTINGS --
+      
+      ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffe8acff)
+      button_action(0, 0, 0, 0,'MAIN PALETTE:##set', 220, 19, true, 0, 0, 0, 0, 0, 0) 
+      ImGui.PopStyleColor(ctx, 1)
+      ImGui.Dummy(ctx, 0, space_btwn)
+      ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 2)
+      ImGui.AlignTextToFramePadding(ctx)
+      ImGui.Text(ctx, 'Color model:')
+      ImGui.SameLine(ctx, 0, 10) 
+      
+      if ImGui.RadioButtonEx(ctx, ' HSL', colorspace, 0) then
+        colorspace = 0; lightness =0.7; darkness =0.20;
+      end
+            
+      ImGui.SameLine(ctx, 0, 5) 
+            
+      if ImGui.RadioButtonEx(ctx, ' HSV', colorspace, 1) then
+        colorspace = 1; lightness =1; darkness =0.3
+      end
+      ImGui.PopStyleVar(ctx, 1)
+      local lightness_range
+      if colorspace == 1 then lightness_range = 1 else lightness_range = 0.8 end
+      
+      ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 0)
+      button_action(0, 0, 0, 0,'saturation##set', 220, 19, true, 0, 0, 0, 0, 0, 0) 
+      ImGui.PopStyleVar(ctx, 1)
+      ImGui.PushItemWidth(ctx, 220)
+      sat_true, saturation = ImGui.SliderDouble(ctx, '##1', saturation, 0.3, 1.0, '%.3f', ImGui.SliderFlags_None())
+      
+      ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 0)
+      button_action(0, 0, 0, 0,'darkness - lightness', 220, 19, true, 0, 0, 0, 0, 0, 0) 
+      ImGui.PopStyleVar(ctx, 1)
+      contrast_true ,darkness, lightness = ImGui.SliderDouble2(ctx, '##2', darkness, lightness, 0.12, lightness_range)
+      
+
+      
+      -- USER MAIN PALETTE PRESET --
+      
+      -- SAVE BUTTON --
+      
+      ImGui.Dummy(ctx, 0, space_btwn)
+      button_action(0, 0, 0, 0,'Main Presets:', 220, 19, true, 0, 0, 0, 0, 0, 0) 
+      
+      if button_action(0.555, 0.59, 0.6, 1, 'Save##2', 90, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
+        SaveMainPalettePreset()
+      end
+        
+      -- DELETE BUTTON --
+      
+      ImGui.SameLine(ctx, 0,38)
+      if button_action(0.555, 0.59, 0.6, 1, 'Delete##2', 90, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
+        DeleteMainPalettePreset()
+      end
+      
+      -- USER MAIN PALETTE MENU --
+      
+      if not stop2 and not main_combo_preview_value then
+        main_combo_preview_value = user_mainpalette[current_main_item]
+      elseif not main_combo_preview_value then
+        main_combo_preview_value = main_new_combo_preview_value
+       
+      end
+        
+      ImGui.PushItemWidth(ctx, 220)
+      local main_combo = ImGui.BeginCombo(ctx, '##7', main_combo_preview_value, 0) 
+      if main_combo then 
+        for i,v in ipairs(user_mainpalette) do
+          local is_selected = current_main_item == i
+          if ImGui.Selectable(ctx, user_mainpalette[i], is_selected, ImGui.SelectableFlags_None(),  300.0,  0.0) then
+            current_main_item = i
+            if main_new_combo_preview_value and current_main_item ~= 1 then
+              reaper.SetExtState(script_name, 'usermainpalette.*Last unsaved*', table.concat(user_main_settings,","),true)
+            end
+            
+            user_main_settings = {} 
+            if reaper.HasExtState(script_name, 'usermainpalette.'..tostring(user_mainpalette[i])) then
+              for i in string.gmatch(reaper.GetExtState(script_name, 'usermainpalette.'..tostring(user_mainpalette[i])), "[^,]+") do
+                insert(user_main_settings, tonumber(string.match(i, "[^,]+")))
+              end
+              colorspace =user_main_settings[1] 
+              saturation = user_main_settings[2] 
+              lightness = user_main_settings[3] 
+              darkness = user_main_settings[4]
+            end
+            main_new_combo_preview_value, main_combo_preview_value, differs3, stop2 = nil, nil, 1, false
+          end
+           
+          if reaper.ImGui_IsItemHovered(ctx) then
+            hovered_main_preset = v
+          end
+
+          -- Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+          if is_selected then
+            ImGui.SetItemDefaultFocus(ctx)
+          end
+        end
+        ImGui.EndCombo(ctx)
+      end
+      
+      if reaper.ImGui_IsWindowHovered(ctx, reaper.ImGui_FocusedFlags_ChildWindows()) then
+        local x, y = reaper.GetMousePosition()
+        if reaper.ImGui_IsItemHovered(ctx) or main_combo then
+          if main_combo and hovered_main_preset ~= ' ' and x > 0 then 
+            for p, c in utf8.codes(hovered_main_preset) do 
+              if c > 255 or string.len(hovered_main_preset) > 30 then 
+                reaper.TrackCtl_SetToolTip( hovered_main_preset, x, y+sys_offset, 0 )
+                break
+              end
+            end
+          elseif x > 0 then
+            for p, c in utf8.codes(user_mainpalette[current_main_item]) do 
+              if c > 255 or string.len(user_mainpalette[current_main_item]) > 30 then 
+                reaper.TrackCtl_SetToolTip( user_mainpalette[current_main_item], x, y+sys_offset, 0 )
+                break
+              end
+            end
+          end
+        end
+      end
+      
+      if sat_true or contrast_true or colorspace ~= colorspace_sw and current_main_item > 1 and not stop2 then
+        main_new_combo_preview_value = user_mainpalette[current_main_item]..' (modified)'
+        stop2, main_combo_preview_value = true, nil
+      end
+
+      ImGui.Dummy(ctx, 0, space_btwn)
+      _, random_main = ImGui.Checkbox(ctx, "Random coloring via button##2", random_main)
+      if button_color(0.14, 0.9, 0.7, 1, 'Reset Main Palette', 220, 19, false, 3)  then 
+        saturation = 0.8; lightness =0.65; darkness =0.20; dont_ask = false; colorspace = 0
+        sat_true = true
+      end
+      
+      ImGui.Separator(ctx)
+      ImGui.End(ctx)
+      set_pos = {ImGui.GetWindowPos(ctx)}
+    end
+    ImGui.PopStyleVar(ctx)
+  end
+
+  local function SettingsPopUp()
+    
+    ImGui.Dummy(ctx, 0, 0)
+    ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffe8acff)
+    
+    if tree_node_open then
+      ImGui.SetNextItemOpen(ctx, true, ImGui.Cond_Once())
+    end
+    
+    local tree_node_open = ImGui.TreeNode(ctx, 'SECTIONS (show/hide)')
+      
+    if tree_node_open then -- first treenode --
+    
+      tree_node_open_save = true
+      -- HIDING SECTIONS --
+      ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffffffff)
+      ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 6)
+      _, show_custompalette  = ImGui.Checkbox(ctx, 'Show Custom Palette', show_custompalette)
+      _, show_edit           = ImGui.Checkbox(ctx, 'Show Edit custom color', show_edit)
+      _, show_lasttouched    = ImGui.Checkbox(ctx, 'Show Last touched', show_lasttouched)
+      _, show_mainpalette    = ImGui.Checkbox(ctx, 'Show Main Palette', show_mainpalette)
+      ImGui.PopStyleVar(ctx, 1)
+      _, show_action_buttons = ImGui.Checkbox(ctx, 'Show Action buttons', show_action_buttons) 
+      ImGui.PopStyleColor(ctx,1)
+    end
+  
+    if tree_node_open then
+      ImGui.TreePop(ctx)
+    end
+  
+    if tree_node_open_save then
+      local was_toggled = ImGui.IsItemToggledOpen(ctx)
+      if was_toggled then
+        tree_node_open_save = false
+      end
+    end
+    
+    ImGui.Dummy(ctx, 0, 0)
+    
+    if tree_node_open2 then
+      ImGui.SetNextItemOpen(ctx, true, ImGui.Cond_Once()) --ImGui.Cond_Once()
+    end
+    
+    local tree_node_open2 = ImGui.TreeNode(ctx, 'ADVANCED SETTINGS       ') -- second treenode --
+    
+    if tree_node_open2 then
+      -- SEPERATOR --
+      tree_node_open_save2 = true
+      ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffe8acff)
+    
+      ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextBorderSize(),3) 
+      ImGui.PushStyleVar (ctx, ImGui.StyleVar_SeparatorTextAlign(), 0.5, 0.5)
+      ImGui.SeparatorText(ctx, '  Coloring Mode  ')
+      ImGui.PopStyleVar(ctx, 2)
+    
+      ImGui.PopStyleColor(ctx,1)
+      ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffffffff)
+    
+      -- MODE SELECTION --
+    
+      ImGui.AlignTextToFramePadding(ctx)
+      ImGui.Text(ctx, 'Mode:')
+      ImGui.SameLine(ctx, 0, 7)
+      ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 6)
+  
+      _, selected_mode = ImGui.RadioButtonEx(ctx, 'Normal', selected_mode, 0); ImGui.SameLine(ctx, 0 , 25)
+      if ImGui.RadioButtonEx(ctx, 'ShinyColors (experimental)   ', selected_mode, 1) then
+        if not dont_ask then
+          ImGui.OpenPopup(ctx, 'ShinyColors Mode')
+        else
+          selected_mode = 1
+        end
+      end
+    
+    
+    
+      -- SHINYCOLORS MODE POPUP --
+  
+      -- Always center this window when appearing
+      local center = {ImGui_Viewport_GetCenter(ImGui.GetWindowViewport(ctx))}
+      ImGui.SetNextWindowPos(ctx, center[1], center[2], ImGui.Cond_Appearing(), 0.5, 0.5)
+      if ImGui.BeginPopupModal(ctx, 'ShinyColors Mode', nil, ImGui.WindowFlags_AlwaysAutoResize()) then
+        ImGui.Text(ctx, 'To use the full potential of ShinyColors Mode,\nmake sure Custom colors settings are set correctly under:\n\n"REAPER/ Preferences/ Appearance/",\n\nor that the currently used theme has a value of 50 for "tinttcp"\ninside its rtconfig.txt file!')
+        ImGui.Dummy(ctx, 0, 0)
+        ImGui.AlignTextToFramePadding(ctx)
+        ImGui.Text(ctx, 'More info:')
+        ImGui.SameLine(ctx, 0, 20)
+        if button_action(0.555, 0.59, 0.6, 1, 'Open PDF in browser', 200, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
+          OpenURL('https://drive.google.com/file/d/1fnRfPrMjsfWTdJtjSAny39dWvJTOyni1/view?usp=share_link')
+        end
+        ImGui.Dummy(ctx, 0, 0)
+        ImGui.Separator(ctx)
+        ImGui.Dummy(ctx, 0, 10)
+        ImGui.AlignTextToFramePadding(ctx)
+        ImGui.Text(ctx, 'Continue with ShinyColors Mode?')
+      
+        if button_action(0.555, 0.59, 0.6, 1, 'OK', 90, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
+          ImGui.CloseCurrentPopup(ctx); selected_mode = 1
+        end
+        ImGui.SetItemDefaultFocus(ctx)
+        ImGui.SameLine(ctx, 0, 20)
+      
+        if button_action(0.555, 0.59, 0.6, 1, 'Cancel', 90, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
+          ImGui.CloseCurrentPopup(ctx); selected_mode = 0
+        end
+        ImGui.SameLine(ctx, 0, 20)
+        _, dont_ask = ImGui.Checkbox(ctx, " Don't ask me next time", dont_ask)
+        ImGui.Dummy(ctx, 0, 10)
+        ImGui.EndPopup(ctx)
+      end -- end of popup
+  
+      ImGui.AlignTextToFramePadding(ctx)
+      ImGui.Text(ctx, 'How to use ShinyColors Mode:')
+      ImGui.SameLine(ctx, 0, 10)
+      if ImGui.Button(ctx, 'PDF', 60, 20) then
+        OpenURL('https://drive.google.com/file/d/1fnRfPrMjsfWTdJtjSAny39dWvJTOyni1/view?usp=share_link')
+      end
+      ImGui.Dummy(ctx, 0, 0)
+      ImGui.PopStyleVar(ctx, 1)
+      
+      -- SEPERATOR --
+      ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffe8acff)
+      
+      ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextBorderSize(),3) 
+      ImGui.PushStyleVar (ctx, ImGui.StyleVar_SeparatorTextAlign(), 0.5, 0.5)
+      ImGui.SeparatorText(ctx, '  Auto Coloring  ')
+      ImGui.PopStyleVar(ctx, 2)
+      ImGui.PopStyleColor(ctx,1)
+      
+     
+      
+      -- CHECKBOX FOR AUTO TRACK COLORING --
+      
+      ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 6)
+      _, auto_trk = ImGui.Checkbox(ctx, "Autocolor new tracks", auto_trk)
+      
+      if auto_trk then 
+        ImGui.Dummy(ctx, 0, 0) 
+        ImGui.SameLine(ctx, 0.0, 20)
+        yes, auto_custom = ImGui.Checkbox(ctx, "Autocolor new tracks to custom palette", auto_custom)
+      end
+  
+      if yes then auto_pal = nil end
+      
+      ImGui.Dummy(ctx, 0, 10)
+      ImGui.AlignTextToFramePadding(ctx)
+      ImGui.Text(ctx, 'Color new items to:')
+      ImGui.PushItemWidth(ctx, 130)
+      ImGui.SameLine(ctx, 0.0, 6)
+      
+      local auto_coloring_preview_value = combo_items[automode_id]
+      
+      ImGui.PushStyleColor(ctx, ImGui.Col_Border(), HSV(0.3, 0.1, 0.5, 1))
+      ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg (), HSV(0.65, 0.4, 0.2, 1))
+      ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgHovered(), HSV(0.65, 0.2, 0.4, 1))
+      if ImGui.BeginCombo(ctx, '##5', auto_coloring_preview_value, 0) then
+        for i=1, #combo_items do
+          local is_selected = automode_id == i
+          if ImGui.Selectable(ctx, combo_items[i], is_selected) then
+            automode_id = i
+          end
+      
+          -- Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+          if is_selected then
+            ImGui.SetItemDefaultFocus(ctx)
+          end
+        end
+        ImGui.EndCombo(ctx)
+      end
+      ImGui.Dummy(ctx, 0, 0)
+      ImGui.PopStyleColor(ctx, 3)
+      ImGui.PopStyleVar(ctx, 1)
+      ImGui.PopStyleColor(ctx)
+    end
+  
+    if tree_node_open2 then
+      ImGui.TreePop(ctx)
+    end
+    
+    if tree_node_open_save2 then
+      local was_toggled2 = ImGui.IsItemToggledOpen(ctx)
+      if was_toggled2 then
+        tree_node_open_save2 = false
+      end
+    end
+    ImGui.PopStyleColor(ctx)
+    ImGui.Dummy(ctx, 0, 0) 
+  end
+  
+  
       
 --[[_______________________________________________________________________________
     _______________________________________________________________________________]]
   
+
 
 
   -- THE COLORPALETTE GUI--
@@ -2010,491 +2775,73 @@
     local col = 0
     ImGui.PushStyleColor(ctx, ImGui.Col_Border(),0x303030ff) col= col+1
     ImGui.PushStyleColor(ctx, ImGui.Col_BorderShadow(), 0x10101050) col= col+1
-    
-    
+  
     
     -- MENUBAR AND SETTINGS POPUP --
       
-    ImGui.BeginMenuBar(ctx)
-    if ImGui.BeginMenu(ctx, 'Settings') then
-      
-      ImGui.Dummy(ctx, 0, 0)
-      ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffe8acff)
-      
-      if tree_node_open then
-        ImGui.SetNextItemOpen(ctx, true, ImGui.Cond_Once()) --ImGui.Cond_Once()
-      end
-      
-      local tree_node_open = ImGui.TreeNode(ctx, 'SECTIONS (show/hide)')
-        
-      if tree_node_open then -- first treenode --
-      
-        tree_node_open_save = true
-        -- HIDING SECTIONS --
-        ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffffffff)
-        ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 6)
-        _, show_custompalette  = ImGui.Checkbox(ctx, 'Show Custom Palette', show_custompalette)
-        _, show_edit           = ImGui.Checkbox(ctx, 'Show Edit custom color', show_edit)
-        _, show_lasttouched    = ImGui.Checkbox(ctx, 'Show Last touched', show_lasttouched)
-        _, show_mainpalette    = ImGui.Checkbox(ctx, 'Show Main Palette', show_mainpalette)
-        ImGui.PopStyleVar(ctx, 1)
-        _, show_action_buttons = ImGui.Checkbox(ctx, 'Show Action buttons', show_action_buttons) 
-        ImGui.PopStyleColor(ctx,1)
-      end
+    --ImGui.BeginMenuBar(ctx) -- left here for ancient
+    --if ImGui.BeginMenu(ctx, 'Settings') then -- left here for ancient
 
-      if tree_node_open then
-        ImGui.TreePop(ctx)
-      end
-
-      if tree_node_open_save then
-        local was_toggled = ImGui.IsItemToggledOpen(ctx)
-        if was_toggled then
-          tree_node_open_save = false
-        end
-      end
-      
-      ImGui.Dummy(ctx, 0, 0)
-      
-      if tree_node_open2 then
-        ImGui.SetNextItemOpen(ctx, true, ImGui.Cond_Once()) --ImGui.Cond_Once()
-      end
-      
-      local tree_node_open2 = ImGui.TreeNode(ctx, 'ADVANCED SETTINGS       ') -- second treenode --
-      
-      if tree_node_open2 then
-        -- SEPERATOR --
-        tree_node_open_save2 = true
-        ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffe8acff)
-      
-        ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextBorderSize(),3) 
-        ImGui.PushStyleVar (ctx, ImGui.StyleVar_SeparatorTextAlign(), 0.5, 0.5)
-        ImGui.SeparatorText(ctx, '  Coloring Mode  ')
-        ImGui.PopStyleVar(ctx, 2)
-      
-        ImGui.PopStyleColor(ctx,1)
-        ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffffffff)
-      
-        -- MODE SELECTION --
-      
-        ImGui.AlignTextToFramePadding(ctx)
-        ImGui.Text(ctx, 'Mode:')
-        ImGui.SameLine(ctx, 0, 7)
-        ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 6)
-
-        _, selected_mode = ImGui.RadioButtonEx(ctx, 'Normal', selected_mode, 0); ImGui.SameLine(ctx, 0 , 25)
-        if ImGui.RadioButtonEx(ctx, 'ShinyColors (experimental)   ', selected_mode, 1) then
-          if not dont_ask then
-            ImGui.OpenPopup(ctx, 'ShinyColors Mode')
-          else
-            selected_mode = 1
-          end
-        end
-      
-      
-      
-        -- SHINYCOLORS MODE POPUP --
-
-        -- Always center this window when appearing
-        local center = {ImGui_Viewport_GetCenter(ImGui.GetWindowViewport(ctx))}
-        ImGui.SetNextWindowPos(ctx, center[1], center[2], ImGui.Cond_Appearing(), 0.5, 0.5)
-        if ImGui.BeginPopupModal(ctx, 'ShinyColors Mode', nil, ImGui.WindowFlags_AlwaysAutoResize()) then
-          ImGui.Text(ctx, 'To use the full potential of ShinyColors Mode,\nmake sure Custom colors settings are set correctly under:\n\n"REAPER/ Preferences/ Appearance/",\n\nor that the currently used theme has a value of 50 for "tinttcp"\ninside its rtconfig.txt file!')
-          ImGui.Dummy(ctx, 0, 0)
-          ImGui.AlignTextToFramePadding(ctx)
-          ImGui.Text(ctx, 'More info:')
-          ImGui.SameLine(ctx, 0, 20)
-          if button_action(0.555, 0.59, 0.6, 1, 'Open PDF in browser', 200, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
-            reaper.CF_ShellExecute('https://drive.google.com/file/d/1fnRfPrMjsfWTdJtjSAny39dWvJTOyni1/view?usp=share_link')
-          end
-          ImGui.Dummy(ctx, 0, 0)
-          ImGui.Separator(ctx)
-          ImGui.Dummy(ctx, 0, 10)
-          ImGui.AlignTextToFramePadding(ctx)
-          ImGui.Text(ctx, 'Continue with ShinyColors Mode?')
-        
-          if button_action(0.555, 0.59, 0.6, 1, 'OK', 90, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
-            ImGui.CloseCurrentPopup(ctx); selected_mode = 1
-          end
-          ImGui.SetItemDefaultFocus(ctx)
-          ImGui.SameLine(ctx, 0, 20)
-        
-          if button_action(0.555, 0.59, 0.6, 1, 'Cancel', 90, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
-            ImGui.CloseCurrentPopup(ctx); selected_mode = 0
-          end
-          ImGui.SameLine(ctx, 0, 20)
-          _, dont_ask = ImGui.Checkbox(ctx, " Don't ask me next time", dont_ask)
-          ImGui.Dummy(ctx, 0, 10)
-          ImGui.EndPopup(ctx)
-        end -- end of popup
-
-        ImGui.AlignTextToFramePadding(ctx)
-        ImGui.Text(ctx, 'How to use ShinyColors Mode:')
-        ImGui.SameLine(ctx, 0, 10)
-        if ImGui.Button(ctx, 'PDF', 60, 20) then
-          reaper.CF_ShellExecute('https://drive.google.com/file/d/1fnRfPrMjsfWTdJtjSAny39dWvJTOyni1/view?usp=share_link')
-        end
-        ImGui.Dummy(ctx, 0, 0)
-        ImGui.PopStyleVar(ctx, 1)
-        
-        -- SEPERATOR --
-        ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffe8acff)
-        
-        ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextBorderSize(),3) 
-        ImGui.PushStyleVar (ctx, ImGui.StyleVar_SeparatorTextAlign(), 0.5, 0.5)
-        ImGui.SeparatorText(ctx, '  Auto Coloring  ')
-        ImGui.PopStyleVar(ctx, 2)
-        ImGui.PopStyleColor(ctx,1)
-        
-       
-        
-        -- CHECKBOX FOR AUTO TRACK COLORING --
-        
-        ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 6)
-        _, auto_trk = ImGui.Checkbox(ctx, "Autocolor new tracks", auto_trk)
-        
-        if auto_trk then 
-          ImGui.Dummy(ctx, 0, 0) 
-          ImGui.SameLine(ctx, 0.0, 20)
-          yes, auto_custom = ImGui.Checkbox(ctx, "Autocolor new tracks to custom palette", auto_custom)
-        end
-
-        if yes then auto_pal = nil end
-        
-        ImGui.Dummy(ctx, 0, 10)
-        ImGui.AlignTextToFramePadding(ctx)
-        ImGui.Text(ctx, 'Color new items to:')
-        ImGui.PushItemWidth(ctx, 130)
-        ImGui.SameLine(ctx, 0.0, 6)
-        
-        local auto_coloring_preview_value = combo_items[automode_id]
-        
-        ImGui.PushStyleColor(ctx, ImGui.Col_Border(), HSV(0.3, 0.1, 0.5, 1))
-        ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg (), HSV(0.65, 0.4, 0.2, 1))
-        ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgHovered(), HSV(0.65, 0.2, 0.4, 1))
-        if ImGui.BeginCombo(ctx, '##5', auto_coloring_preview_value, 0) then
-          for i=1, #combo_items do
-            local is_selected = automode_id == i
-            if ImGui.Selectable(ctx, combo_items[i], is_selected) then
-              automode_id = i
-            end
-        
-            -- Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-            if is_selected then
-              ImGui.SetItemDefaultFocus(ctx)
-            end
-          end
-          ImGui.EndCombo(ctx)
-        end
-        ImGui.Dummy(ctx, 0, 0)
-        ImGui.PopStyleColor(ctx, 3)
-        ImGui.PopStyleVar(ctx, 1)
-        ImGui.PopStyleColor(ctx)
-      end
-
-      if tree_node_open2 then
-        ImGui.TreePop(ctx)
-      end
-      
-      if tree_node_open_save2 then
-        local was_toggled2 = ImGui.IsItemToggledOpen(ctx)
-        if was_toggled2 then
-          tree_node_open_save2 = false
-        end
-      end
-      
-      ImGui.PopStyleColor(ctx)
-      ImGui.Dummy(ctx, 0, 0) 
-      ImGui.EndMenu(ctx)
-
+    if reaper.ImGui_BeginPopupContextItem(ctx, '##Settings3') then
+      SettingsPopUp()
+      ImGui.EndPopup(ctx)
     end -- Settings Menu
     
-    if selected_mode == 1 then
-      ImGui.SameLine(ctx, 60, w-200)
-      ImGui.Text(ctx, 'ShinyColors:')
-      ImGui.SameLine(ctx, 0, 3)
-      ImGui.RadioButtonEx(ctx, '##', selected_mode, 1)
-    end
-      
-    ImGui.EndMenuBar(ctx) 
+    --ImGui.EndMenuBar(ctx) - -- left here for ancient
 
     
     -- PALETTE MENU --
         
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 5); var=var+1 
-    
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 9); var=var+1 
+
+    ImGui.Dummy(ctx, 0, 0) 
     if button_action(0.555, 0.59, 0.6, 1, 'Palette Menu', 140, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
       openSettingWnd = true
     end
     
     if openSettingWnd then
-      local set_x
-      local set_h 
-      ImGui.SetNextWindowSize(ctx, 236, 670, ImGui.Cond_Appearing()) 
-      local set_y = p_y +30
-      if set_y < 0 then
-        set_y = p_y + h 
-      end
-      if  p_x -300 < 0 then set_x = p_x + w +30 else set_x = p_x -300 end
-      
-      if not set_pos then
-        ImGui.SetNextWindowPos(ctx, set_x, set_y, ImGui.Cond_Appearing())
-      end
-      
-      visible, openSettingWnd = ImGui.Begin(ctx, 'Palette Menu', true, ImGui.WindowFlags_NoCollapse() | ImGui.WindowFlags_NoDocking()) 
-      if visible then
-
-      -- GENERATE CUSTOM PALETTES -- 
-      
-      local space_btwn = 8
-      ImGui.Dummy(ctx, 0, 2)
-      ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffe8acff)
-      button_action(0, 0, 0, 0,'CUSTOM PALETTE:##set', 220, 19, true, 0, 0, 0, 0, 0, 0) 
-      ImGui.PopStyleColor(ctx, 1)
-
-      ImGui.Dummy(ctx, 0, space_btwn)
-      button_action(0, 0, 0, 0,'Generate Custom Palette:', 220, 19, true, 0, 0, 0, 0, 0, 0) 
-      
-      if button_action(0.555, 0.59, 0.6, 1, 'analogous', 220, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then 
-        custom_palette_analogous()
-      end
-      
-      if button_action(0.555, 0.59, 0.6, 1, 'triadic', 220, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then 
-        custom_palette_triadic()
-      end
-      
-      if button_action(0.555, 0.59, 0.6, 1, 'complementary', 220, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then 
-        custom_palette_complementary()
-      end
-          
-      if button_action(0.555, 0.59, 0.6, 1, 'split complementary', 220, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then 
-        custom_palette_split_complementary()
-      end
-          
-      if button_action(0.555, 0.59, 0.6, 1, 'double split complementary', 220, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then 
-        custom_palette_double_split_complementary()
-      end
-      
-      ImGui.Dummy(ctx, 0, space_btwn)
-      button_action(0, 0, 0, 0,'Presets:', 220, 19, true, 0, 0, 0, 0, 0, 0)  
-      
+      PaletteMenu(p_y, p_x, w)
+    end
     
-      
-      -- SAVING USER PALETTES --
-      
-      -- SAVE BUTTON --
-      
-      if button_action(0.555, 0.59, 0.6, 1, 'Save', 90, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
-        retval, retvals_csv = reaper.GetUserInputs('Set a new preset name', 1, 'Enter name:, extrawidth=300', user_palette[current_item]) 
-        if retval and retvals_csv ~= '' and retvals_csv ~= '*Last unsaved*' then
-          --differs2 = nil
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 6); var=var+1
+    -- THE NEW SETTINGS BUTTON --
 
-          
-          if #user_palette == 1 then
-            reaper.SetExtState(script_name , 'userpalette.*Last unsaved*',  table.concat(custom_palette,","),true)
-          end
-
-          local index = #user_palette+1
-          local preset_found
-          for i = 1, #user_palette do
-            if string.gsub(retvals_csv, '^%s*(.-)%s*$', '%1') == string.gsub(user_palette[i], '^%s*(.-)%s*$', '%1') then
-              preset_found = 1 
-              restore = reaper.ShowMessageBox('Do you want to overwrite the preset?', 'PRESET ALREADY EXISTS', 1)
-              if restore == 1 then
-                index = i
-                user_palette[index] = retvals_csv
-                local serialized = serializeTable(user_palette)
-                reaper.SetExtState(script_name , 'user_palette', serialized, true )
-                reaper.SetExtState(script_name , 'userpalette.'..tostring(retvals_csv),  table.concat(custom_palette,","),true)
-                current_item, stop, differs = index, nil, index
-                
-              end
-            end
-          end
-      
-          if not preset_found then 
-            differs2 = nil 
-            user_palette[index] = retvals_csv
-            if index == 2 then user_palette[1] = '*Last unsaved*' end
-            local serialized = serializeTable(user_palette)
-            reaper.SetExtState(script_name , 'user_palette', serialized, true )
-            reaper.SetExtState(script_name , 'userpalette.'..tostring(retvals_csv),  table.concat(custom_palette,","),true)
-            current_item = index
-          end
-          stop = nil
-          new_combo_preview_value = nil 
-        end
-      end
-      
-
-
-      -- DELETE BUTTON --
-      
-      ImGui.SameLine(ctx, 0,38)
-      if button_action(0.555, 0.59, 0.6, 1, 'Delete', 90, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
-        if #user_palette > 1 and current_item > 1 then
-          
-          reaper.DeleteExtState( script_name, 'userpalette.'..tostring(user_palette[current_item]), true )
-          table.remove(user_palette, current_item)
-          local serialized = serializeTable(user_palette)
-          reaper.SetExtState(script_name , 'user_palette', serialized, true )
-          if current_item > #user_palette then current_item = current_item - 1 end
-      
-          custom_palette = {} 
-          if reaper.HasExtState(script_name, 'userpalette.'..tostring(user_palette[current_item])) then
-            for i in string.gmatch(reaper.GetExtState(script_name, 'userpalette.'..tostring(user_palette[current_item])), "[^,]+") do
-              insert(custom_palette, tonumber(string.match(i, "[^,]+")))
-            end
-          end
-          new_combo_preview_value = nil 
-          differs, stop = current_item, nil
-          cust_tbl = nil
-        end
-      end
-      
-      
-      -- USER PALETTE MENU --
-      
-      if not stop then
-        combo_preview_value = user_palette[current_item]
-      else
-        combo_preview_value = new_combo_preview_value
-      end
-        
-      ImGui.PushItemWidth(ctx, 220)
-      local combo = ImGui.BeginCombo(ctx, '##6', combo_preview_value, 0) 
-      if combo then 
-        for i,v in ipairs(user_palette) do
-          local is_selected = current_item == i
-          if ImGui.Selectable(ctx, user_palette[i], is_selected, ImGui.SelectableFlags_None(),  300.0,  0.0) then
-            if new_combo_preview_value then
-              reaper.SetExtState(script_name , 'userpalette.*Last unsaved*',  table.concat(custom_palette,","),true)
-            end
-            
-            current_item = i
-      
-            custom_palette = {} 
-            if reaper.HasExtState(script_name, 'userpalette.'..tostring(user_palette[i])) then
-              for i in string.gmatch(reaper.GetExtState(script_name, 'userpalette.'..tostring(user_palette[i])), "[^,]+") do
-                insert(custom_palette, tonumber(string.match(i, "[^,]+")))
-              end
-            end
-            stop = nil
-            new_combo_preview_value = nil 
-            cust_tbl = nil
-          end
-          
-
-          if reaper.ImGui_IsItemHovered(ctx) then
-            hovered_preset = v
-          end
-
-          -- Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-          if is_selected then
-            ImGui.SetItemDefaultFocus(ctx)
-          end
-        end
-        ImGui.EndCombo(ctx)
-      end
-      
-      if reaper.ImGui_IsWindowHovered(ctx, reaper.ImGui_FocusedFlags_ChildWindows()) then
-        if reaper.ImGui_IsItemHovered(ctx) or combo then
-          local x, y = reaper.GetMousePosition()
-          if combo and hovered_preset ~= ' ' and x > 0 then 
-          --if hovered_preset ~= ' ' and x > 0 then 
-            for p, c in utf8.codes(hovered_preset) do 
-              if c > 255 or string.len(hovered_preset) > 30 then 
-                reaper.TrackCtl_SetToolTip( hovered_preset, x, y+sys_offset, 0 )
-                break
-              else
-                reaper.TrackCtl_SetToolTip( '', 0, 0, 0 )
-              end
-            end
-          elseif x > 0 then
-            for p, c in utf8.codes(user_palette[current_item]) do 
-              if c > 255 or string.len(user_palette[current_item]) > 30 then 
-                reaper.TrackCtl_SetToolTip( user_palette[current_item], x, y+sys_offset, 0 )
-                break
-              end
-            end
-          end
-        else
-          reaper.TrackCtl_SetToolTip( '', 0, 0, 0 )
-        end
-      end
-      
-      if differs and current_item > 1 and not stop and differs2 == 1 then
-        new_combo_preview_value = user_palette[current_item]..' (modified)'
-        stop = true
-        differs2 = nil
-      end
-      
-      ImGui.Dummy(ctx, 0, space_btwn)
-      _, random_custom = ImGui.Checkbox(ctx, "Random coloring via button##1", random_custom)
-      
-      if button_color(0.14, 0.9, 0.7, 1, 'Reset Custom Palette', 220, 19, false, 3)  then 
-        custom_palette = {}
-        cust_tbl = nil
-        for m = 0, 23 do
-          insert(custom_palette, HSL(m / 24+0.69, 0.1, 0.2, 1))
-        end
-      end
-      
-      ImGui.Separator(ctx)
-      ImGui.Dummy(ctx, 0, space_btwn)
-      
-      
-      -- MAIN PALETTE SETTINGS --
-      
-      ImGui.PushStyleColor(ctx, ImGui.Col_Text(), 0xffe8acff)
-      button_action(0, 0, 0, 0,'MAIN PALETTE:##set', 220, 19, true, 0, 0, 0, 0, 0, 0) 
-      ImGui.PopStyleColor(ctx, 1)
-      ImGui.Dummy(ctx, 0, space_btwn)
-      
-      ImGui.AlignTextToFramePadding(ctx)
-      ImGui.Text(ctx, 'Color model:')
-      ImGui.SameLine(ctx, 0, 10) 
-
-      if ImGui.RadioButtonEx(ctx, ' HSL', colorspace, 0) then
-        colorspace = 0; lightness =0.7; darkness =0.20;
-      end
-            
-      ImGui.SameLine(ctx, 0, 5) 
-            
-      if ImGui.RadioButtonEx(ctx, ' HSV', colorspace, 1) then
-        colorspace = 1; lightness =1; darkness =0.3
-      end
-      
-      local lightness_range
-      if colorspace == 1 then lightness_range = 1 else lightness_range = 0.8 end
-      
-      ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 4)
-      button_action(0, 0, 0, 0,'saturation##set', 220, 19, true, 0, 0, 0, 0, 0, 0) 
-      ImGui.PopStyleVar(ctx, 1)
-      ImGui.PushItemWidth(ctx, 220)
-      sat_true, saturation = ImGui.SliderDouble(ctx, '##1', saturation, 0.3, 1.0, '%.3f', ImGui.SliderFlags_None())
-      
-      ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 4)
-      button_action(0, 0, 0, 0,'darkness - lightness', 220, 19, true, 0, 0, 0, 0, 0, 0) 
-      ImGui.PopStyleVar(ctx, 1)
-      contrast_true ,darkness, lightness = ImGui.SliderDouble2(ctx, '##2', darkness, lightness, 0.12, lightness_range)
-      
-      ImGui.Dummy(ctx, 0, space_btwn)
-
-      _, random_main = ImGui.Checkbox(ctx, "Random coloring via button##2", random_main)
-      if button_color(0.14, 0.9, 0.7, 1, 'Reset Main Palette', 220, 19, false, 3)  then 
-        saturation = 0.8; lightness =0.65; darkness =0.20; dont_ask = false; colorspace = 0
-        sat_true = true
-      end
-
-      ImGui.Separator(ctx)
-          
-      ImGui.End(ctx)
-      set_pos = {ImGui.GetWindowPos(ctx)}
-    end  
-  end 
+    local pos = {reaper.ImGui_GetCursorScreenPos(ctx)}
+    
+    ImGui.SameLine(ctx, 0, 5)
+    if button_action(0.555, 0.59, 0.6, 1, '##Settings2', 36, 21, true, 4, 0.555, 0.2, 0.3, 0.55, 5) then
+      ImGui.OpenPopup(ctx, '##Settings3')
+    end
+    
+    local center = {pos[1]+154, pos[2]-22}
+    
+    
+    -- DRAWING --
+    
+    local draw_list = reaper.ImGui_GetWindowDrawList(ctx)
   
-  
-  
+    local draw_color = 0xffe8acff
+    --local draw_color = 0xffffffff
+    if reaper.ImGui_IsItemHovered(ctx) then
+      draw_thickness = 1.8
+    else
+      draw_thickness = 1.6
+    end
+    
+    reaper.ImGui_DrawList_AddLine(draw_list, center[1], center[2], center[1]+3, center[2], draw_color, draw_thickness)
+    reaper.ImGui_DrawList_AddLine(draw_list, center[1]+7, center[2], center[1]+18, center[2], draw_color, draw_thickness)
+    reaper.ImGui_DrawList_AddLine(draw_list, center[1], center[2]+6, center[1]+10, center[2]+6, draw_color, draw_thickness)
+    reaper.ImGui_DrawList_AddLine(draw_list, center[1]+14, center[2]+6, center[1]+18, center[2]+6, draw_color, draw_thickness)
+    reaper.ImGui_DrawList_AddCircle(draw_list, center[1]+6, center[2], 3, draw_color,  0, draw_thickness)
+    reaper.ImGui_DrawList_AddCircle(draw_list, center[1]+12, center[2]+6, 3, draw_color,  0, draw_thickness)
+    
+    -- Open settings popup via right click --
+
+    if reaper.ImGui_IsMouseClicked(ctx, ImGui.MouseButton_Right(), false) and reaper.ImGui_IsWindowHovered(ctx) and not reaper.ImGui_IsAnyItemHovered(ctx) then
+      ImGui.OpenPopup(ctx, '##Settings3')
+    end
+
+    
     -- UPPER RIGHT CORNER --
     
     -- MODE ELEMENT POSITION --
@@ -2502,6 +2849,22 @@
     local width2 = size*24+2*23
     ImGui.SameLine(ctx, 155, width2-140-88)
     
+    
+    
+    -- SHINY MODE INDICATOR --
+    
+    if selected_mode == 1 then
+      ImGui.SameLine(ctx, 155, width2-262-88)
+      button_action(0, 0, 0, 0,'ShinyColors:', 90, 21, true, 0, 0, 0, 0, 0, 0) 
+      ImGui.SameLine(ctx, 0, 3)
+      ImGui.RadioButtonEx(ctx, '##', selected_mode, 1)
+      ImGui.SameLine(ctx, 0, 6)
+    else
+      ImGui.SameLine(ctx, 155, width2-140-88)
+    end
+    
+    
+    --ImGui.SameLine(ctx, 0, 3)
     
     -- SELECTION INDICATOR --
 
@@ -2531,23 +2894,35 @@
     end
 
     if not ImGui.IsKeyDown(ctx, ImGui.Mod_Shortcut()) and ImGui.IsItemClicked(ctx, ImGui.MouseButton_Right())then
-      reaper.Main_OnCommand(40769, 0)
+      reaper.Main_OnCommand(40769, 0) -- Unselect (clear selection of) all tracks/items/envelope points
     end
+    
+    -- FRAME FOR SELECTION INDICATOR
+    
+    if selected_mode == 1 then
+      local draw_list = ImGui.GetWindowDrawList(ctx)
+      local text_min_x, text_min_y = reaper.ImGui_GetItemRectMin(ctx)
+      local text_max_x, text_max_y = reaper.ImGui_GetItemRectMax(ctx)
+      --reaper.ImGui_DrawList_AddRect(draw_list, text_min_x-3, text_min_y-3, text_max_x+3, text_max_y+3, HSV(0.3, 1, 1, 0.3), 3, DrawFlags_None, 3)
+      reaper.ImGui_DrawList_AddRect(draw_list, text_min_x-3, text_min_y-3, text_max_x+3, text_max_y+3, HSV(0.3, 0, 0.3, 0.3), 3, DrawFlags_None, 3)
+    end
+    
+    
 
     ImGui.Dummy(ctx, 0, 1)
     ImGui.PopStyleVar(ctx, var) -- for upper part
     ImGui.PopStyleColor(ctx, col) -- for upper part
   
   
+  
     -- -- GENERATING TABLES -- --
 
-    if not main_palette
-      or sat_true 
-        or contrast_true
-            or colorspace ~= colorspace_sw then
+    if not main_palette or differs3 or sat_true or contrast_true
+        or colorspace ~= colorspace_sw then
       main_palette = Palette()
       pal_tbl = generate_palette_color_table()
       colorspace_sw = colorspace 
+      user_main_settings = generate_user_main_settings()
     end
     
     if not cust_tbl then
@@ -2568,7 +2943,6 @@
       test_track_it = GetMediaItemTrack(test_item)
 
     elseif sel_tracks > 0 then
-      --test_track = GetSelectedTrack(0, 0)
       items_mode = 0
       test_item_sw = nil
       test_item = nil
@@ -2585,9 +2959,11 @@
     get_sel_items_or_tracks_colors(sel_items, sel_tracks, test_item, test_take, test_track)
     
     if selected_mode == 1 then
-     Color_new_items_automatically(init_state)
-     automatic_item_coloring(init_state)
-     reselect_take(init_state)
+      Color_new_items_automatically(init_state)
+      automatic_item_coloring(init_state)
+      if not not_inst then
+        reselect_take(init_state)
+      end
     end
 
     if auto_trk then
@@ -2724,7 +3100,7 @@
           end
           
           if got_color then
-            custom_color, widgetscolorsrgba, differs, differs2, stop  = rgba, rgba, current_item, 1, nil
+            custom_color, widgetscolorsrgba, differs, differs2, stop  = rgba, rgba, current_item, 1, false
             custom_palette[m] = rgba 
             cust_tbl = nil 
           end
@@ -2747,7 +3123,7 @@
           local rv,drop_color = ImGui.AcceptDragDropPayloadRGBA(ctx)
           if rv then
             custom_palette[m] = drop_color 
-            differs, differs2, stop = current_item, 1, nil
+            differs, differs2, stop = current_item, 1, false
             cust_tbl = nil
           end
           ImGui.EndDragDropTarget(ctx)
@@ -2807,7 +3183,7 @@
       ImGui.SameLine(ctx, -1, 156) -- overlapping items
       
       
-      
+  
       -- APPLY CUSTOM COLOR --
       
       if ImGui.ColorButton(ctx, 'Apply custom color##3', rgba, ImGui.ColorEditFlags_NoBorder(), 21, 21)
@@ -2938,7 +3314,7 @@
       ImGui.PopStyleVar(ctx,4) 
       ImGui.PopStyleColor(ctx, 1) 
   
-      
+    
       
       -- MAIN COLOR PALETTE --
 
@@ -3164,9 +3540,12 @@
     reaper.SetExtState(script_name ,'show_mainpalette',     tostring(show_mainpalette),true)
     reaper.SetExtState(script_name ,'show_action_buttons',  tostring(show_action_buttons),true)
     reaper.SetExtState(script_name ,'current_item',         tostring(current_item),true)
+    reaper.SetExtState(script_name ,'current_main_item',    tostring(current_main_item),true)
     reaper.SetExtState(script_name ,'auto_custom',          tostring(auto_custom),true)
     reaper.SetExtState(script_name ,'tree_node_open_save',  tostring(tree_node_open_save),true)
-    reaper.SetExtState(script_name ,'tree_node_open_save2',  tostring(tree_node_open_save2),true)
+    reaper.SetExtState(script_name ,'tree_node_open_save2', tostring(tree_node_open_save2),true)
+    reaper.SetExtState(script_name ,'stop',                 tostring(stop),true)
+    reaper.SetExtState(script_name ,'stop2',                tostring(stop2),true)
   end
   
  
@@ -3207,10 +3586,10 @@
     end
     
     ImGui.PushFont(ctx, sans_serif)
-    local window_flags = ImGui.WindowFlags_None() |  ImGui.WindowFlags_MenuBar()
+    local window_flags = ImGui.WindowFlags_None() --|  ImGui.WindowFlags_MenuBar()
     local style_color_n = push_style_color()
     local style_var_m = push_style_var()
-    ImGui.SetNextWindowSize(ctx, 1000, 500, ImGui.Cond_FirstUseEver())
+    ImGui.SetNextWindowSize(ctx, 641, 377, ImGui.Cond_FirstUseEver())
     local visible, open = ImGui.Begin(ctx, 'Chroma - Coloring Tool', true, window_flags)
     local init_state = GetProjectStateChangeCount(0)
     if visible then
@@ -3295,3 +3674,5 @@
   defer(loop)
   
   reaper.atexit(save_current_settings)
+
+
