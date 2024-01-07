@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="2cf231d678064efea1a3d2a34338340c37ab9fc5">
+<index version="1" name="Olshalom_Reascripts" commit="0fd40ff01c36eb06091c122d1d78674252a424f5">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -78,6 +78,45 @@ Bug fixes:
   > Performance boost for Highlighting Colors
   > Many many more improvements]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/2cf231d678064efea1a3d2a34338340c37ab9fc5/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.8.0" author="olshalom, vitalker" time="2023-12-30T11:34:51Z">
+        <changelog><![CDATA[0.8.0
+Bug fixes:
+  > Tooltip bug fix for Palette Menu (p=2746078)
+
+0.7.9
+NEW features:
+  > Save/Load Custom Palettes
+  > Show/Hide Sections
+  > Checkbox for Auto track coloring to custom palette
+  > Added current/original to color picker for custom color palette
+  > Added current/original to color picker for edit custom color 
+  > Clicking the selection indicator allows to switch between tracks/items if both are selected
+  > Clicking the selection indicator doesn't unselect tracks/items anymore
+  > Selection and Indicator is TCP/Arrange Window context-aware
+  > Automatically color multiple added tracks
+  > Refined Action "Color items/tracks to main palette" (dependent on selection indicator)
+  > Refined Action "Color items/tracks to custom palette" (dependent on selection indicator)
+  > Refined Action "Color items/tracks to gradient" (dependent on selection indicator)
+
+Mouse modifiers:
+  > Shift + Command/Control: Gradient Shortcut for automatically make a gradient for selected items/tracks (in two steps)
+  > Shift: Color selected items/tracks to Main/Custom Palette Shortcut for Color Buttons 
+  > Command/Control + RightClick Custom Color Button: get selected color to custom palette 
+  > Right click selection indicator unselect all items/tracks 
+
+Appearance:
+  > Redesigning Settings menu
+  > Redesigning shinycolors mode popup
+  > Dynamic action buttons font size
+  > Show shorter names for action buttons when the size is small enough 
+
+Bug fixes:
+  > Highlighting for empty items in shinycolors mode
+  > fixing update arrange in automatic item coloring for shinycolors mode (performance improvement)
+  > Performance boost for Highlighting Colors
+  > Many many more improvements]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/0fd40ff01c36eb06091c122d1d78674252a424f5/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
   </category>
