@@ -9,8 +9,8 @@
 --  
 --   Appearance:
 --     > Redesigned Menubar
-
-
+--
+--
 --   0.8.0
 --   Bug fixes:
 --     > Tooltip bug fix for Palette Menu (p=2746078)
