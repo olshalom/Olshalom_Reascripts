@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="3fbf07ebc81d86484a837f7eb6bc51e1378f27b9">
+<index version="1" name="Olshalom_Reascripts" commit="27017e416d595504c9b35c721eadcd510e23cf32">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -127,6 +127,20 @@ NEW features:
 Appearance:
   > Redesigned Menubar]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/3fbf07ebc81d86484a837f7eb6bc51e1378f27b9/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.8.2" author="olshalom, vitalker" time="2024-01-10T18:34:49Z">
+        <changelog><![CDATA[0.8.2
+Bug fixes:
+  > issue if opening Palette Menu
+
+0.8.1
+NEW features:
+  > Save/Load Main Palette Presets
+  > Improved saving of "Last unsaved" presets (backup)
+
+Appearance:
+  > Redesigned Menubar]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/27017e416d595504c9b35c721eadcd510e23cf32/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
   </category>
