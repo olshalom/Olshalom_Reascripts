@@ -2253,7 +2253,7 @@
   
   -- PALETTE MENU WINDOW --
   
-  local function PaletteMenu(p_y, p_x, w)
+  local function PaletteMenu(p_y, p_x, w, h)
   
     local set_x
     local set_h 
@@ -2800,7 +2800,7 @@
     end
     
     if openSettingWnd then
-      PaletteMenu(p_y, p_x, w)
+      PaletteMenu(p_y, p_x, w, h)
     end
     
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing(), 0, 6); var=var+1
