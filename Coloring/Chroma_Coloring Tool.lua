@@ -1,7 +1,11 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.8.1
+-- @version 0.8.2
 -- @changelog
+--   0.8.2
+--   Bug fixes:
+--     > issue if opening Palette Menu
+--
 --   0.8.1
 --   NEW features:
 --     > Save/Load Main Palette Presets
