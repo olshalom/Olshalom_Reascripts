@@ -1,7 +1,11 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.8.2
+-- @version 0.8.3
 -- @changelog
+--   0.8.3
+--   Bug fixes:
+--     > check for ReaImGui Version compatibility
+--
 --   0.8.2
 --   Bug fixes:
 --     > issue if opening Palette Menu
@@ -97,6 +101,8 @@
       return
     end
   end
+  
+  dofile(reaper.GetResourcePath() ..'/Scripts/ReaTeam Extensions/API/imgui.lua')('0.9.0')
   
   
   
@@ -3678,5 +3684,4 @@
   defer(loop)
   
   reaper.atexit(save_current_settings)
-
 
