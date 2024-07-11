@@ -5,7 +5,7 @@
 --   0.8.4
 --   Bug fixes:
 --     > Fix issue with empty items in shinycolors mode
---
+
 --   0.8.3
 --   Bug fixes:
 --     > check for ReaImGui Version compatibility
