@@ -1,7 +1,11 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.8.3
+-- @version 0.8.4
 -- @changelog
+--   0.8.4
+--   Bug fixes:
+--     > Fix issue with empty items in shinycolors mode
+--
 --   0.8.3
 --   Bug fixes:
 --     > check for ReaImGui Version compatibility
@@ -9,12 +13,12 @@
 --   0.8.2
 --   Bug fixes:
 --     > issue if opening Palette Menu
---
+
 --   0.8.1
 --   NEW features:
 --     > Save/Load Main Palette Presets
 --     > Improved saving of "Last unsaved" presets (backup)
---  
+--
 --   Appearance:
 --     > Redesigned Menubar
 
@@ -1085,47 +1089,61 @@
   
     local takelane_mode = reaper.SNM_GetIntConfigVar("projtakelane", 1)
     
-    if (takelane_mode == 1 or takelane_mode == 3) and takelane_mode ~= takelane_mode2 then
-      PreventUIRefresh(1)
-      local item_count = CountMediaItems(0)
-      for i = 0, CountMediaItems(0) -1 do
-        local item = GetMediaItem(0, i)
-        local tke_num = GetMediaItemNumTakes(item)
-        if tke_num > 1 then
-          local back2 = ImGui.ColorConvertNative(HSV(1, 0, 0.7, 1.0) >> 8)|0x1000000
-          SetMediaItemInfo_Value(item ,"I_CUSTOMCOLOR", back2) 
-        end
-      end
-      PreventUIRefresh(-1)
-      UpdateArrange()
-      takelane_mode2 = takelane_mode
-    elseif (takelane_mode == 0 or takelane_mode == 2) and takelane_mode ~= takelane_mode2 then
-      PreventUIRefresh(1)
-      for i = 0, CountMediaItems(0) -1 do
-        local item = GetMediaItem(0, i)
-        local tke_num = GetMediaItemNumTakes(item)
-        if tke_num > 1 then
-          local take = GetActiveTake(item)
-          local takecolor = GetMediaItemTakeInfo_Value(take, "I_CUSTOMCOLOR")
-          if takecolor == 0 then 
-            local trk_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(item), "IP_TRACKNUMBER")
-            SetMediaItemInfo_Value(item ,"I_CUSTOMCOLOR", col_tbl.it[trk_ip])
-          else
-            local back = background_color_native(takecolor)
-            SetMediaItemInfo_Value(item, "I_CUSTOMCOLOR", back) 
+    if takelane_mode ~= takelane_mode2 then
+      if (takelane_mode == 1 or takelane_mode == 3) then
+        PreventUIRefresh(1)
+        local item_count = CountMediaItems(0)
+        for i = 0, CountMediaItems(0) -1 do
+          local item = GetMediaItem(0, i)
+          local tke_num = GetMediaItemNumTakes(item)
+          if tke_num > 1 then
+            for j = 0, tke_num -1 do
+              local take = reaper.GetTake(item, j)
+              local takecolor = reaper.GetMediaItemTakeInfo_Value(take, "I_CUSTOMCOLOR")
+              if takecolor2 then
+                if takecolor ~= takecolor2 then
+                  local back2 = ImGui.ColorConvertNative(HSV(1, 0, 0.7, 1.0) >> 8)|0x1000000
+                  SetMediaItemInfo_Value(item ,"I_CUSTOMCOLOR", back2) 
+                end
+              else
+                takecolor2 = takecolor
+              end
+            end
           end
         end
+        PreventUIRefresh(-1)
+        UpdateArrange()
+        takelane_mode2 = takelane_mode
+      elseif (takelane_mode == 0 or takelane_mode == 2) then
+        PreventUIRefresh(1)
+        for i = 0, CountMediaItems(0) -1 do
+          local item = GetMediaItem(0, i)
+          local tke_num = GetMediaItemNumTakes(item)
+          if tke_num > 1 then
+            local take = GetActiveTake(item)
+            if take then
+              local takecolor = GetMediaItemTakeInfo_Value(take, "I_CUSTOMCOLOR")
+              if takecolor == 0 then 
+                local trk_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(item), "IP_TRACKNUMBER")
+                SetMediaItemInfo_Value(item ,"I_CUSTOMCOLOR", col_tbl.it[trk_ip])
+              else
+                local back = background_color_native(takecolor)
+                SetMediaItemInfo_Value(item, "I_CUSTOMCOLOR", back) 
+              end
+            end
+          end
+        end
+        PreventUIRefresh(-1)
+        UpdateArrange()
+        takelane_mode2 = takelane_mode
       end
-      PreventUIRefresh(-1)
-      UpdateArrange()
-      takelane_mode2 = takelane_mode
     end
     
-    if (takelane_mode == 0 or takelane_mode == 2)
-      and (Undo_CanUndo2(0)=='Change active take'
-        or Undo_CanUndo2(0)=='Previous take'
-          or Undo_CanUndo2(0)=='Next take')
-            and init_state ~= cur_state then
+    if init_state ~= cur_state 
+      and (takelane_mode == 0 or takelane_mode == 2) 
+        and (Undo_CanUndo2(0)=='Change active take'
+          or Undo_CanUndo2(0)=='Previous take'
+            or Undo_CanUndo2(0)=='Next take') then
       PreventUIRefresh(1)
       for i=0, sel_items -1 do 
         local takecolor = GetMediaItemTakeInfo_Value(sel_tbl.tke[i+1], "I_CUSTOMCOLOR")
@@ -3684,4 +3702,3 @@
   defer(loop)
   
   reaper.atexit(save_current_settings)
-
