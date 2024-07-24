@@ -1,7 +1,11 @@
 -- @description Chroma - Coloring Tool
 -- @author olshalom, vitalker
--- @version 0.8.4
+-- @version 0.8.5
 -- @changelog
+--   0.8.5
+--   Bug fixes:
+--     > Fix second issue with empty items in shinycolors mode
+--
 --   0.8.4
 --   Bug fixes:
 --     > Fix issue with empty items in shinycolors mode
@@ -9,7 +13,7 @@
 --   0.8.3
 --   Bug fixes:
 --     > check for ReaImGui Version compatibility
---
+
 --   0.8.2
 --   Bug fixes:
 --     > issue if opening Palette Menu
@@ -1099,14 +1103,16 @@
           if tke_num > 1 then
             for j = 0, tke_num -1 do
               local take = reaper.GetTake(item, j)
-              local takecolor = reaper.GetMediaItemTakeInfo_Value(take, "I_CUSTOMCOLOR")
-              if takecolor2 then
-                if takecolor ~= takecolor2 then
-                  local back2 = ImGui.ColorConvertNative(HSV(1, 0, 0.7, 1.0) >> 8)|0x1000000
-                  SetMediaItemInfo_Value(item ,"I_CUSTOMCOLOR", back2) 
+              if take then
+                local takecolor = reaper.GetMediaItemTakeInfo_Value(take, "I_CUSTOMCOLOR")
+                if takecolor2 then
+                  if takecolor ~= takecolor2 then
+                    local back2 = ImGui.ColorConvertNative(HSV(1, 0, 0.7, 1.0) >> 8)|0x1000000
+                    SetMediaItemInfo_Value(item ,"I_CUSTOMCOLOR", back2) 
+                  end
+                else
+                  takecolor2 = takecolor
                 end
-              else
-                takecolor2 = takecolor
               end
             end
           end
