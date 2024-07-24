@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="c731be2da9f60a805216d21b3f1596f57b5b9f39">
+<index version="1" name="Olshalom_Reascripts" commit="95839e9ac41d138695363db26985003194657909">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -173,6 +173,16 @@ Bug fixes:
 Bug fixes:
   > issue if opening Palette Menu]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/c731be2da9f60a805216d21b3f1596f57b5b9f39/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.8.5" author="olshalom, vitalker" time="2024-07-24T04:34:06Z">
+        <changelog><![CDATA[0.8.5
+Bug fixes:
+  > Fix second issue with empty items in shinycolors mode
+
+0.8.4
+Bug fixes:
+  > Fix issue with empty items in shinycolors mode]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/95839e9ac41d138695363db26985003194657909/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
   </category>
