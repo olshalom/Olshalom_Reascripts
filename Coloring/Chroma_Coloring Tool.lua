@@ -7,7 +7,7 @@
 --      NEW features:
 --        > Marker and region coloring
 --        > Region/Marker Manager support
---        > "Static selection mode" via hold of ctrl/cmd and clicking selection indicator
+--        > "Static context mode" via hold of ctrl/cmd and clicking selection indicator
 --        > Refinement of "Color tracks/items to Main/Custom palette functions" when only one is selected
 --        > Redisgned selection system under the hood for integrading marker/region coloring 
 --        > Autocolor new items drawn via pencil in ShinyColors Mode
