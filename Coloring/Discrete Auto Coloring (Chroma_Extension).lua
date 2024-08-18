@@ -1,4 +1,4 @@
---  @description CHROMA - Discrete Auto Coloring
+--  @description Discrete Auto Coloring (Chroma_Exntension)
 --  @author olshalom, vitalker
 --  @version 0.1
 --
