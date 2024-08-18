@@ -5,15 +5,15 @@
 --  @changelog
 --    0.8.7
 --      NEW features:
---        > Added aditional Script "CHROMA - Discrete Auto Coloring" when autocoloring should continue after exit
+--        > Added aditional Script "Discrete Auto Coloring (Chroma_Extension)" when autocoloring should continue after exit
 --
 --      Performance:
 --        > Improved current project lookup
 --
 --      Bug fixes/improvements:
---        > Improved Static Mode for regions and markers, so one or the other is static
+--        > Improved static context mode for regions and markers, so one or the other is static
 --        > Fixed reasonless recoloring selected tracks when new project is opened in same tab
---        > Fixed reset Palette indicates "modified" for current saved palette
+--        > Fixed reset palette indicates "modified" for current saved palette
 --        > Fixed staticmode for regions and markers when items moved in shinycolors mode
 --
 --
