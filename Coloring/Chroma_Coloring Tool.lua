@@ -1,13 +1,27 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.8.6
+--  @version 0.8.7
 --
 --  @changelog
+--    0.8.7
+--      NEW features:
+--        > Added aditional Script "CHROMA - Discrete Auto Coloring" when autocoloring should continue after exit
+--
+--      Performance:
+--        > Improved current project lookup
+--
+--      Bug fixes/improvements:
+--        > Improved Static Mode for regions and markers, so one or the other is static
+--        > Fixed reasonless recoloring selected tracks when new project is opened in same tab
+--        > Fixed reset Palette indicates "modified" for current saved palette
+--        > Fixed staticmode for regions and markers when items moved in shinycolors mode
+--
+--
 --    0.8.6
 --      NEW features:
 --        > Marker and region coloring
 --        > Region/Marker Manager support
---        > "Static context mode" via hold of ctrl/cmd and clicking selection indicator
+--        > "Static selection mode" via hold of ctrl/cmd and clicking selection indicator
 --        > Refinement of "Color tracks/items to Main/Custom palette functions" when only one is selected
 --        > Redisgned selection system under the hood for integrading marker/region coloring 
 --        > Autocolor new items drawn via pencil in ShinyColors Mode
@@ -211,7 +225,7 @@
     if err then return end
   end
   
-  
+
   
   -- PREDEFINE FUNCTIONS AS LOCAL --
   
@@ -261,8 +275,7 @@
   local GetMousePosition = reaper.GetMousePosition
   local GetItemFromPoint = reaper.GetItemFromPoint
   local Undo_CanRedo2 = reaper.Undo_CanRedo2
-  local SetExtState = reaper.SetExtState
-
+  SetExtState = reaper.SetExtState
   local insert = table.insert
   local max = math.max
   local min = math.min
@@ -294,6 +307,7 @@
   local combo_items = { '   Track color', ' Custom color' }
   
   
+  
   -- CONTROL VARIABLES -- run out of local variables
   
   local pre_cntrl = {
@@ -320,7 +334,9 @@
     tree_node_open2,
     tree_node_open_save2,
     tree_node_open3,
-    tree_node_open_save3
+    tree_node_open_save3,
+    keep_running1,
+    keep_running2 = ' '
     }
 
   
@@ -383,7 +399,9 @@
   local sel_mk 
   local can_re = ""
   local cur_state4
-
+  local item_sw
+  local takecolor2
+  local projfn2
   
   
   -- Thanks to Sexan for the next two functions -- 
@@ -465,7 +483,11 @@
     return ImGui.ColorConvertDouble4ToU32(r/255, g/255, b/255, a or 1.0)
   end
   
-
+  
+  
+  function toboolean(str) return str == "true" end
+  
+  
 
   -- LOADING SETTINGS --
   
@@ -490,8 +512,9 @@
       insert(custom_palette, tonumber(string.match(i, "[^,]+"))) 
     end
   else
-    for m = 0, 23 do
-      insert(custom_palette, HSL(m / 24+0.69, 0.1, 0.2, 1))
+    for m = 1, 24 do
+      --insert(custom_palette, HSL(m / 24+0.69, 0.1, 0.2, 1))
+      custom_palette[m] = HSL(m / 24+0.69, 0.1, 0.2, 1)
     end
   end
   
@@ -621,6 +644,10 @@
     if reaper.GetExtState(script_name, "background_color_mode") == "true" then set_cntrl.background_color_mode = true end
   else set_cntrl.background_color_mode = false end
   
+  if reaper.HasExtState(script_name, "keep_running1") then
+    set_cntrl.keep_running1 = toboolean(reaper.GetExtState(script_name, "keep_running1"))
+  else set_cntrl.keep_running1 = false end
+  
 
 
   -- IMGUI CONTEXT --
@@ -646,6 +673,34 @@
   reaper.JS_WindowMessage_Intercept(ruler_win, msgs, true)
   reaper.JS_WindowMessage_Intercept(arrange, msgs, true)
   reaper.JS_WindowMessage_Intercept(TCPDisplay, msgs, true)
+  
+  
+  
+  do
+    local Automode_script = reaper.NamedCommandLookup("_RS202fa170b3900414fbac3e51b3ff3cb514dabda5")
+    local state = reaper.GetToggleCommandState(Automode_script)
+    set_cntrl.keep_running2 = Automode_script
+    if state == 1 then 
+      reaper.Main_OnCommand(Automode_script, 0)
+      set_cntrl.keep_running1 = true
+    elseif state == -1 then
+      local i = 0
+      repeat
+        local cmd, name = reaper.kbd_enumerateActions(0,i)
+        if name:find("^Script: Chroma_Discrete Coloring") then
+          state = reaper.GetToggleCommandState(cmd)
+          set_cntrl.keep_running2 = cmd
+          if state == 1 then
+            reaper.Main_OnCommand(cmd, 0)
+            set_cntrl.keep_running1 = true
+          end
+        break
+        end
+        i = i + 1
+      until cmd == 0
+    end
+  end
+  
 
 
   
@@ -926,9 +981,10 @@
       end
       check_mark = false
       
-    elseif sel_items > 0 and (test_take2 ~= test_take or sel_items ~= it_cnt_sw or test_item_sw ~= test_item) 
-      and (static_mode == 0 or static_mode == 2) then
-      palette_high = {main = {}, cust = {}}
+    elseif sel_items > 0 and (test_take2 ~= test_take or sel_items ~= it_cnt_sw or test_item_sw ~= test_item) then
+      if (static_mode == 0 or static_mode == 2) then
+        palette_high = {main = {}, cust = {}}
+      end
       sel_color = {}
       sel_tbl = {it = {}, tke = {}, tr = {}, it_tr = {}}
       move_tbl = {it = {}, trk_ip = {}}
@@ -1001,16 +1057,18 @@
         end
         if itemcolor ~= itemcolor_sw and itemcolor ~= nil then
           itemcolor = IntToRgba(itemcolor)
-          for i = 1, #main_palette do
-            if itemcolor == main_palette[i] then
-              palette_high.main[i] = 1
-              break
+          if (static_mode == 0 or static_mode == 2) then
+            for i = 1, #main_palette do
+              if itemcolor == main_palette[i] then
+                palette_high.main[i] = 1
+                break
+              end
             end
-          end
-          for i = 1, #custom_palette do
-            if itemcolor == custom_palette[i] then
-              palette_high.cust[i] = 1 
-              break
+            for i = 1, #custom_palette do
+              if itemcolor == custom_palette[i] then
+                palette_high.cust[i] = 1 
+                break
+              end
             end
           end
           sel_index, itemcolor_sw = sel_index+1, itemcolor
@@ -1021,7 +1079,9 @@
       it_cnt_sw, col_found  = sel_items, nil
       
     elseif sel_tracks > 0 and (test_track_sw ~= test_track or sel_tracks2 ~= sel_tracks) and items_mode == 0 then 
-      palette_high = {main = {}, cust = {}}
+      if (static_mode == 0 or static_mode == 1) then
+        palette_high = {main = {}, cust = {}}
+      end
       sel_color = {}
       for i=0, sel_tracks -1 do
         test_track_sw, sel_tracks2 = test_track, sel_tracks
@@ -1029,14 +1089,16 @@
         sel_tbl.tr[i+1] = track
         local trackcolor = IntToRgba(GetTrackColor(track)) 
         sel_color[i+1] = trackcolor
-        for i =1, #main_palette do
-          if trackcolor == main_palette[i] then
-            palette_high.main[i] = 1
+        if (static_mode == 0 or static_mode == 1) then
+          for i =1, #main_palette do
+            if trackcolor == main_palette[i] then
+              palette_high.main[i] = 1
+            end
           end
-        end
-        for i =1, #custom_palette do
-          if trackcolor == custom_palette[i] then
-            palette_high.cust[i] = 1
+          for i =1, #custom_palette do
+            if trackcolor == custom_palette[i] then
+              palette_high.cust[i] = 1
+            end
           end
         end
       end
@@ -1115,7 +1177,7 @@
   
   -- COLOR TAKES IN SHINYCOLORS MODE --
   
-  local function reselect_take(init_state)
+  local function reselect_take(init_state, sel_items)
   
     local takelane_mode = reaper.SNM_GetIntConfigVar("projtakelane", 1)
     
@@ -1129,7 +1191,7 @@
           if tke_num > 1 then
             for j = 0, tke_num -1 do
               local take = reaper.GetTake(item, j)
-              if take then
+              if take then   
                 local takecolor = reaper.GetMediaItemTakeInfo_Value(take, "I_CUSTOMCOLOR")
                 if takecolor2 then
                   if takecolor ~= takecolor2 then
@@ -2100,7 +2162,7 @@
   
   
   
-  -- for simply recall pregenerated colors --
+  -- for simply recall pre-generated colors --
   
   function generate_custom_color_table()
   
@@ -2112,21 +2174,7 @@
     return cust_tbl
   end
   
-  
-  
-  function getProjectTabIndex()
 
-    local i, project = 0, EnumProjects(-1, '')
-    while true do
-      if EnumProjects(i, '') == project then
-        return i
-      else
-       i = i + 1
-      end
-    end
-  end
-  
-  
 
   local function shortcut_gradient(sel_tracks, test_track, color_input) 
     
@@ -2286,17 +2334,6 @@
 
   
   -- USER MAIN PALETTE BUTTON FUNCTIONS --
-
-  local function generate_user_main_settings()
-
-    user_main_settings = {}
-    user_main_settings[1] = colorspace
-    user_main_settings[2] = saturation
-    user_main_settings[3] = lightness
-    user_main_settings[4] = darkness
-    return user_main_settings
-  end
-  
   
   
   local function SaveMainPalettePreset()
@@ -2347,7 +2384,7 @@
         for i in string.gmatch(reaper.GetExtState(script_name, 'usermainpalette.'..tostring(user_mainpalette[pre_cntrl.current_main_item])), "[^,]+") do
           insert(user_main_settings, tonumber(string.match(i, "[^,]+")))
         end
-        colorspace =user_main_settings[1] 
+        colorspace = user_main_settings[1] 
         saturation = user_main_settings[2] 
         lightness = user_main_settings[3] 
         darkness = user_main_settings[4]
@@ -2492,11 +2529,6 @@
         end
       end
 
-      if pre_cntrl.differs and not pre_cntrl.stop and pre_cntrl.differs2 == 1 then
-        pre_cntrl.new_combo_preview_value = user_palette[pre_cntrl.current_item]..' (modified)'
-        pre_cntrl.stop, pre_cntrl.differs2, pre_cntrl.combo_preview_value = true, nil, nil
-      end
-      
       ImGui.Dummy(ctx, 0, space_btwn)
       _, random_custom = ImGui.Checkbox(ctx, "Random coloring via button##1", random_custom)
       
@@ -2506,6 +2538,14 @@
         for m = 0, 23 do
           insert(custom_palette, HSL(m / 24+0.69, 0.1, 0.2, 1))
         end
+        pre_cntrl.differs = true
+        pre_cntrl.differs2 = 1
+      end
+      
+      
+      if pre_cntrl.differs and not pre_cntrl.stop and pre_cntrl.differs2 == 1 then
+        pre_cntrl.new_combo_preview_value = user_palette[pre_cntrl.current_item]..' (modified)'
+        pre_cntrl.stop, pre_cntrl.differs2, pre_cntrl.combo_preview_value = true, nil, nil
       end
       
       ImGui.Separator(ctx)
@@ -2627,11 +2667,6 @@
           end
         end
       end
-      
-      if sat_true or contrast_true or colorspace ~= colorspace_sw and pre_cntrl.current_main_item > 1 and not pre_cntrl.stop2 then
-        pre_cntrl.main_new_combo_preview_value = user_mainpalette[pre_cntrl.current_main_item]..' (modified)'
-        pre_cntrl.stop2, pre_cntrl.main_combo_preview_value = true, nil
-      end
 
       ImGui.Dummy(ctx, 0, space_btwn)
       _, random_main = ImGui.Checkbox(ctx, "Random coloring via button##2", random_main)
@@ -2639,6 +2674,12 @@
         saturation = 0.8; lightness =0.65; darkness =0.20; dont_ask = false; colorspace = 0
         sat_true = true
       end
+      
+      if sat_true or contrast_true or colorspace ~= colorspace_sw and pre_cntrl.current_main_item > 1 and not pre_cntrl.stop2 then
+        pre_cntrl.main_new_combo_preview_value = user_mainpalette[pre_cntrl.current_main_item]..' (modified)'
+        pre_cntrl.stop2, pre_cntrl.main_combo_preview_value = true, nil
+      end
+      
       ImGui.PopStyleVar(ctx, 1)
       ImGui.Separator(ctx)
       ImGui.End(ctx)
@@ -2731,7 +2772,7 @@
       ImGui.SameLine(ctx, 0, 7)
       ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 6)
       _, selected_mode = ImGui.RadioButtonEx(ctx, 'Normal', selected_mode, 0); ImGui.SameLine(ctx, 0 , 25)
-      if ImGui.RadioButtonEx(ctx, 'ShinyColors (experimental)   ', selected_mode, 1) then
+      if ImGui.RadioButtonEx(ctx, 'ShinyColors             ', selected_mode, 1) then
         if not dont_ask then
           ImGui.OpenPopup(ctx, 'ShinyColors Mode')
         else
@@ -2804,6 +2845,9 @@
       end
   
       if yes then auto_pal = nil end
+      
+      ImGui.Dummy(ctx, 0, 10)
+      _, set_cntrl.keep_running1 = ImGui.Checkbox(ctx, "Keep running AutoColor options after exit", set_cntrl.keep_running1)
       
       ImGui.Dummy(ctx, 0, 10)
       ImGui.AlignTextToFramePadding(ctx)
@@ -2936,7 +2980,7 @@
   
   local function GetSelectedMarkers(sel_ruler, mouse_lane, region_lanes, marker_lanes, rvs, test_item, sel_items)
   
-    if (sel_ruler == 'marker_lane' or sel_ruler == 'region_lane') and (static_mode == 0 or static_mode == 3)  then 
+    if (sel_ruler == 'marker_lane' or sel_ruler == 'region_lane') and (static_mode == 0 or static_mode == 3 or static_mode == 4)  then 
       local sel_key_m, sel_key_r
       items_mode, sel_mk, check_mark = 3, 1, false
       local retval, _, _ = reaper.CountProjectMarkers(0)
@@ -2959,14 +3003,17 @@
         local marker = reaper.JS_ListView_GetItemText(container, tonumber(index), 1)
         local marker2 = marker:gsub("%D+", "")
         local sel_key = marker:gsub("%A+", "")
-        if sel_key == "M" then
+        if sel_key == "M" and (static_mode == 0 or static_mode == 3) then
           sel_key_m = true
-        elseif sel_key == "R" then
+          sel_markers.number[i] = tonumber(marker2)
+          sel_markers.m_type[i] = sel_key
+          check_mark = true
+        elseif sel_key == "R" and (static_mode == 0 or static_mode == 4) then
           sel_key_r = true
+          sel_markers.number[i] = tonumber(marker2)
+          sel_markers.m_type[i] = sel_key
+          check_mark = true
         end
-        sel_markers.number[i] = tonumber(marker2)
-        sel_markers.m_type[i] = sel_key
-        check_mark = true
       end
   
       for i = 0, retval-1 do 
@@ -2985,12 +3032,12 @@
       end
       
       if check_mark == true then
-        if sel_key_m == true and sel_key_r == true then
+        if sel_key_m == true and sel_key_r == true and static_mode == 0 then
           tr_txt = 'Mrk+Rgn'
-        elseif sel_key_m == true then
+        elseif sel_key_m == true and (static_mode == 0 or static_mode == 3) then
           tr_txt = 'Markers'
           sel_mk = 1
-        elseif sel_key_r == true then
+        elseif sel_key_r == true and (static_mode == 0 or static_mode == 4) then
           tr_txt = 'Regions'
           sel_mk = 2
         end
@@ -3076,7 +3123,6 @@
         rv_markers = {}
       end
     end
-    --seen_msgs[1] = rvs
     test_item = nil
   end
     
@@ -3097,7 +3143,6 @@
       local same_pos_t = {pos={}, num={}}
 
       if marker_lanes > 1 then -- more than 1 lane seen!! 
-      
         -- GET TIMELINE FONT FROM COLORTHEME_FILE OR INI
         local path_mode, tl_font
         local inipath = reaper.get_ini_file()
@@ -3138,7 +3183,7 @@
         local height, width, escapement, orientation, weight, italic, underline, strike_out,
         charset, out_precision, clip_precision, quality, pitch_and_family, facename =
           ('iiiiibbbbbbbbc32'):unpack(tl_font)
-
+        
         local font_size, font_size_t, nativedraw, osx_display, bm, bmDC, font, button_t, bk_mode
         
         if sys_os ==1 then
@@ -3343,7 +3388,6 @@
         reaper.JS_GDI_ReleaseDC( bmDC, bm )
         reaper.JS_GDI_DeleteObject(font)
         reaper.JS_LICE_DestroyBitmap(bm)
-        
       else -- if only one lane is seen
         for i = 0, retval -1 do 
           rv_markers.retval[i], rv_markers.isrgn[i], rv_markers.pos[i], rv_markers.rgnend[i], rv_markers.name[i], rv_markers.markrgnindexnumber[i], rv_markers.color[i] = reaper.EnumProjectMarkers3( 0, i )
@@ -3616,11 +3660,12 @@
     
     
     -- CHECK FOR PROJECT TAP CHANGE --
-    local cur_project = getProjectTabIndex()
+
+    local cur_project, projfn = reaper.EnumProjects( -1 )
     
-    if cur_project ~= old_project then
-      old_project, track_number_sw, col_tbl, cur_state4 = cur_project, nil
-      track_number_stop = tr_cnt
+    if cur_project ~= old_project or projfn ~= projfn2 then
+      old_project, projfn2, track_number_stop = cur_project, projfn, tr_cnt
+      track_number_sw, col_tbl, cur_state4, it_cnt_sw, items_mode, test_track_sw = nil
     end
     
     
@@ -3630,7 +3675,16 @@
     local rvs2 = select(3, reaper.JS_WindowMessage_Peek(arrange, msgs))
     local rvs3 = select(3, reaper.JS_WindowMessage_Peek(TCPDisplay, msgs))
     local rvs4 = select(2, IsManagerWindow())
-  
+    
+    --if init_state ~= yes_undo and Undo_CanRedo2(0) and Undo_CanRedo2(0) ~= can_re and string.match(Undo_CanRedo2(0), "CHROMA:") then 
+    if init_state ~= yes_undo
+      and Undo_CanRedo2(0)
+        and (Undo_CanRedo2(0) ~= can_re or reaper.Undo_CanUndo2(0) == Undo_CanRedo2(0))
+          and string.match(Undo_CanRedo2(0), "CHROMA:") then 
+      yes_undo, it_cnt_sw, test_track_sw, col_tbl = init_state, nil
+      can_re = Undo_CanRedo2(0) 
+    end 
+    
     
     -- AUTO TRACK COLORING --
     
@@ -3660,8 +3714,9 @@
     -- SAVE ALL TRACKS AND THEIR COLORS TO A TABLE --
     
     if not col_tbl 
-      or ((Undo_CanUndo2(0)=='Change track order')
-          or  tr_cnt ~= tr_cnt_sw) then
+      or tr_cnt ~= tr_cnt_sw
+        or Undo_CanUndo2(0)=='Change track order' then
+          
       generate_trackcolor_table(tr_cnt)
       tr_cnt_sw = tr_cnt 
     end
@@ -3760,7 +3815,7 @@
             elseif items_mode == 3 and sel_mk == 1 then
               static_mode = 3
             elseif items_mode == 3 and sel_mk == 2 then
-              static_mode = 3
+              static_mode = 4
             end
           else
             static_mode = 0 
@@ -3841,7 +3896,8 @@
       main_palette = Palette()
       pal_tbl = generate_palette_color_table()
       colorspace_sw = colorspace 
-      user_main_settings = generate_user_main_settings()
+      --user_main_settings = generate_user_main_settings()
+      user_main_settings = {colorspace, saturation, lightness, darkness}
     end
     
     if not cust_tbl then
@@ -3858,6 +3914,11 @@
       cur_state5 = init_state
     end 
     
+    -- UNDO after adding tracks --
+    if reaper.Undo_CanRedo2(0) =='CHROMA: Automatically color new tracks' then
+      reaper.Undo_DoUndo2(0)
+    end
+    
   
     -- SWITCHING BETWEEN MODES ALONG WITH MARKERS AND REGIONS --
 
@@ -3873,7 +3934,6 @@
         seen_msgs[1] = rvs[3]
         test_item = nil
       end 
-        
     -- MOUSE CLICK MANAGER --
     elseif rvs4 ~= (seen_msgs[4] or 0) and (static_mode == 0 or static_mode == 3) then
       local win = select(4, IsManagerWindow())
@@ -3940,13 +4000,8 @@
         end
         reselect_take(init_state, sel_items, item_track) 
       end
-  
-      if init_state ~= yes_undo and Undo_CanRedo2(0) and Undo_CanRedo2(0) ~= can_re and string.match(Undo_CanRedo2(0), "CHROMA:") then 
-        yes_undo, it_cnt_sw, test_track_sw, col_tbl = init_state, nil
-        can_re = Undo_CanRedo2(0) 
-      end 
     end
-   
+
 
     -- -- ==== MIDDLE PART ==== -- --
     
@@ -3986,19 +4041,17 @@
             sel_color[1] = custom_palette[m]
 
             if ImGui.IsKeyDown(ctx, ImGui.Mod_Shift) and not ImGui.IsKeyDown(ctx, ImGui.Mod_Ctrl) then
+              local first_stay = true
               if items_mode == 0 then
-                first_stay = true
                 Color_multiple_tracks_to_custom_palette(sel_tracks, first_stay) 
-                first_stay = false
                 col_tbl, sel_tracks2 = nil, nil
                 Undo_EndBlock2(0, "CHROMA: Color multiple tracks to custom palette", 1+4)
               elseif items_mode == 1 then
-                first_stay = true
                 Color_multiple_items_to_custom_palette(sel_items, first_stay)
-                first_stay = false
                 it_cnt_sw = nil
                 Undo_EndBlock2(0, "CHROMA: Color multiple items to custom palette", 4)
               end
+              first_stay = false
             else
               if items_mode == 0 then
                 col_tbl, sel_tracks2 = nil, nil
@@ -4144,10 +4197,10 @@
       -- APPLY CUSTOM COLOR --
       
       if ImGui.ColorButton(ctx, 'Apply custom color##3', rgba, ImGui.ColorEditFlags_NoBorder, 21, 21)
-        or ((Undo_CanUndo2(0)=='Insert media items'
-          or Undo_CanUndo2(0)=='Recorded media')
-            and (not cur_state or cur_state < init_state))
-              and automode_id == 2  then
+        or automode_id == 2
+          and ((not cur_state or cur_state < init_state)
+            and (Undo_CanUndo2(0)=='Insert media items'
+              or Undo_CanUndo2(0)=='Recorded media')) then
         local cur_state = init_state
         Undo_BeginBlock2(0)
         coloring_cust_col(sel_items, sel_tracks, rgba) 
@@ -4298,19 +4351,17 @@
           coloring(sel_items, sel_tracks, pal_tbl.tr, pal_tbl.it, n) 
           sel_color[1] = main_palette[n]
           if ImGui.IsKeyDown(ctx, ImGui.Mod_Shift) and not ImGui.IsKeyDown(ctx, ImGui.Mod_Ctrl) then
+            local first_stay = true
             if items_mode == 0 then
-              first_stay = true
               Color_multiple_tracks_to_palette_colors(sel_tracks, first_stay) 
-              first_stay = false
               col_tbl, sel_tracks2 = nil, nil
               Undo_EndBlock2(0, "CHROMA: Color multiple tracks to custom palette", 1+4)
             elseif items_mode == 1 then
-              first_stay = true
               Color_multiple_items_to_palette_colors(sel_items, first_stay)
-              first_stay = false
               it_cnt_sw = nil 
               Undo_EndBlock2(0, "CHROMA: Color multiple items to custom palette", 4)
             end
+            first_stay = false
           else
             if items_mode == 0 then
               col_tbl, sel_tracks2 = nil, nil
@@ -4466,10 +4517,11 @@
   local function CollapsedPalette(init_state)
   
     -- CHECK FOR PROJECT TAP CHANGE --
-    local cur_project = getProjectTabIndex()
+    local cur_project, projfn = reaper.EnumProjects( -1 )
     
-    if cur_project ~= old_project then
-      old_project, track_number_sw, col_tbl, cur_state4 = cur_project, nil
+    if cur_project ~= old_project or projfn ~= projfn2 then
+      old_project, projfn2, track_number_stop = cur_project, projfn, tr_cnt
+      track_number_sw, col_tbl, cur_state4, it_cnt_sw, items_mode, test_track_sw = nil
     end
   
     -- DEFINE "GLOBAL" VARIABLES --
@@ -4589,6 +4641,7 @@
     SetExtState(script_name ,'stop',                 tostring(pre_cntrl.stop),true)
     SetExtState(script_name ,'stop2',                tostring(pre_cntrl.stop2),true)
     SetExtState(script_name ,'background_color_mode',tostring(set_cntrl.background_color_mode),true)
+    SetExtState(script_name ,'keep_running1',        tostring(set_cntrl.keep_running1),true)
   end
   
  
@@ -4654,7 +4707,6 @@
     ImGui.PopStyleColor(ctx, style_color_n)
     ImGui.PopStyleVar(ctx, style_var_m)
     if ImGui.IsKeyPressed(ctx, ImGui.Key_Escape) then open = false end -- Escape Key
-    if ImGui.IsKeyPressed(ctx, ImGui.Mod_Ctrl) and ImGui.IsKeyPressed(ctx, ImGui.Key_Z) then reaper.Undo_DoUndo2( 0 ) end
     if open then
       defer(loop)
     end
@@ -4673,3 +4725,13 @@
     reaper.JS_WindowMessage_Release(TCPDisplay, msgs)
     reaper.JS_WindowMessage_Release(RegionManager, msgs2)
   end)
+  
+  
+  
+  reaper.atexit(function()
+      if set_cntrl.keep_running1 == true and (auto_trk == true or selected_mode == 1) then
+        reaper.Main_OnCommand(set_cntrl.keep_running2, 0)
+      end
+    end)
+    
+    
