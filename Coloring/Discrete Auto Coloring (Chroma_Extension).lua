@@ -7,6 +7,7 @@
 --      Bug fixes: 
 --        > fix table creation on startup
 
+
 --    0.1
 --      NEW features:
 --        > initial release
