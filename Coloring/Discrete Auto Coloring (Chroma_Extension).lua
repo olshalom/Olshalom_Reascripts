@@ -1,8 +1,12 @@
 --  @description Discrete Auto Coloring (Chroma_Exntension)
 --  @author olshalom, vitalker
---  @version 0.1
+--  @version 0.2
 --
 --  @changelog
+--    0.2
+--      Bug fixes: 
+--        > fix table creation on startup
+
 --    0.1
 --      NEW features:
 --        > initial release
@@ -139,7 +143,7 @@
   local cust_tbl = nil
   local sel_tbl = {it = {}, tke = {}, tr = {}, it_tr = {}}
   local custom_palette = {}
-  local main_palette = {}
+  local main_palette 
   local auto_pal 
   local auto_custom
   local auto_palette
@@ -781,6 +785,15 @@
       old_project, projfn2, track_number_stop = cur_project, projfn, tr_cnt
       track_number_sw, col_tbl, cur_state4, it_cnt_sw, items_mode, test_track_sw = nil
     end
+    
+    if not main_palette then
+      main_palette = Palette()
+      pal_tbl = generate_palette_color_table()
+    end
+    
+    if not cust_tbl then
+      cust_tbl = generate_custom_color_table()
+    end
   
     -- DEFINE "GLOBAL" VARIABLES --
     
@@ -817,27 +830,13 @@
       tr_cnt_sw = tr_cnt
     end  
     
-    if not main_palette then
-      main_palette = Palette()
-      pal_tbl = generate_palette_color_table()
-    end
-    
-    if not cust_tbl then
-      cust_tbl = generate_custom_color_table()
-    end
-    
     -- CALLING FUNCTIONS --
-    
-    --get_sel_items_or_tracks_colors(sel_items, sel_tracks,test_item, test_take, test_track)
 
     if selected_mode == 1 then
-    
-      
       local sel_items = CountSelectedMediaItems(0)
       if (sel_tracks == 0 or GetCursorContext2(true) ~= 0) and sel_items > 0 then 
         test_item = GetSelectedMediaItem(0, 0) 
         test_take = GetActiveTake(test_item)
-        --test_track_it = GetMediaItemTrack(test_item)
         items_mode = 1
       elseif sel_tracks > 0 then
         items_mode, test_item_sw, test_item = 0, nil
