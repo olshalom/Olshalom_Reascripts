@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="59e9715f83d2e9bb8863b1274973c148f16f4a72">
+<index version="1" name="Olshalom_Reascripts" commit="ea74b38adaa4e1826ed9d39ff6c362748b373f78">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -265,6 +265,12 @@ Bug fixes:
   NEW features:
     > initial release]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/11cf64ac7f1214543d518c3e56c2462cd3fbafca/Coloring/Discrete%20Auto%20Coloring%20(Chroma_Extension).lua</source>
+      </version>
+      <version name="0.2" author="olshalom, vitalker" time="2024-08-19T22:10:40Z">
+        <changelog><![CDATA[0.2
+  Bug fixes: 
+    > fix table creation on startup]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/ea74b38adaa4e1826ed9d39ff6c362748b373f78/Coloring/Discrete%20Auto%20Coloring%20(Chroma_Extension).lua</source>
       </version>
     </reapack>
   </category>
