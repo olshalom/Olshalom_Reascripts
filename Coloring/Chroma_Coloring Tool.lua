@@ -1,6 +1,6 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.8.7.1
+--  @version 0.8.7.2
 --
 --  @changelog
 --    0.8.7.1
@@ -48,6 +48,7 @@
 --
 --      Bug fixes:
 --        > Updating trackcolor table on change of custom palette for automatic track coloring
+
 
 --   0.8.5
 --   Bug fixes:
