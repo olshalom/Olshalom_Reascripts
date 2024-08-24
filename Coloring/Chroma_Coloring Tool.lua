@@ -2915,11 +2915,8 @@
     
     local _, _, height = reaper.JS_Window_GetClientSize(ruler_win) 
     local rulerlayout = reaper.SNM_GetIntConfigVar("rulerlayout", 1)
-    --if rulerlayout%4 >= 2 then mark_mode = false else mark_mode = true end
-    if rulerlayout&2 == 0 then mark_mode = false else mark_mode = true end
-    --if rulerlayout%8 >= 4 then tempo_mode = 1 else tempo_mode = 0 end
-    if rulerlayout&4 == 0 then tempo_mode = 1 else tempo_mode = 0 end
-    --if rulerlayout%32 >= 24 then time_mode, time_offs = 1, 14 else time_mode, time_offs = 0, 0 end
+    if rulerlayout&2 ~= 0 then mark_mode = false else mark_mode = true end
+    if rulerlayout&4 ~= 0 then tempo_mode = 1 else tempo_mode = 0 end
     if rulerlayout&16 == 0 then time_mode, time_offs = 1, 14 else time_mode, time_offs = 0, 0 end
     
     if sys_os == 1 then
@@ -2955,6 +2952,7 @@
     elseif height >= height_key+sec_offset-time_offs then
       lane_count = (height-height_key-sec_offset+time_offs)//pattern+3-tempo_mode
       if rulerlayout&1 == 0 then 
+      --if rulerlayout&1 ~= 0 then 
         if mark_mode == true then
           reg_key, mark_key = lane_count//2+(lane_count%2), lane_count//2
           region_h, marker_h = top_offs+pattern*reg_key, top_offs+pattern*mark_key
