@@ -1,11 +1,15 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.8.7
+--  @version 0.8.7.1
 --
 --  @changelog
+--    0.8.7.1
+--      Improvements
+--        > better bitfield calculation for read out of config vars
+--
 --    0.8.7
 --      NEW features:
---        > Added aditional Script "Discrete Auto Coloring (Chroma_Extension)" when autocoloring should continue after exit
+--        > Added aditional Script "CHROMA - Discrete Auto Coloring" when autocoloring should continue after exit
 --
 --      Performance:
 --        > Improved current project lookup
@@ -985,10 +989,12 @@
       if (static_mode == 0 or static_mode == 2) then
         palette_high = {main = {}, cust = {}}
       end
+
       sel_color = {}
       sel_tbl = {it = {}, tke = {}, tr = {}, it_tr = {}}
       move_tbl = {it = {}, trk_ip = {}}
-      local index, tr_index, it_index, sel_index, trk_ip, same_col  = 0, 0, 0, 0
+      local index, tr_index, it_index, sel_index, trk_ip, same_col, itemtrack2, itemtrack = 0, 0, 0, 0
+      
       for i=0, sel_items -1 do
         local itemcolor, different
         index = index+1
@@ -1002,7 +1008,6 @@
           tr_index, itemtrack2, different = tr_index+1, itemtrack, 1
           sel_tbl.tr[tr_index] = itemtrack
         end
-
         if selected_mode == 1 then
           if take then 
             itemcolor = GetMediaItemTakeInfo_Value(take,"I_CUSTOMCOLOR")
@@ -1052,10 +1057,11 @@
               end
             end
           end
+
         else
           itemcolor = GetDisplayedMediaItemColor(item)
         end
-        if itemcolor ~= itemcolor_sw and itemcolor ~= nil then
+        if itemcolor and itemcolor ~= itemcolor_sw  then
           itemcolor = IntToRgba(itemcolor)
           if (static_mode == 0 or static_mode == 2) then
             for i = 1, #main_palette do
@@ -2909,12 +2915,15 @@
     
     local _, _, height = reaper.JS_Window_GetClientSize(ruler_win) 
     local rulerlayout = reaper.SNM_GetIntConfigVar("rulerlayout", 1)
-    if rulerlayout%4 >= 2 then mark_mode = false else mark_mode = true end
-    if rulerlayout%8 >= 4 then tempo_mode = 1 else tempo_mode = 0 end
-    if rulerlayout%32 >= 24 then time_mode, time_offs = 1, 14 else time_mode, time_offs = 0, 0 end
+    --if rulerlayout%4 >= 2 then mark_mode = false else mark_mode = true end
+    if rulerlayout&2 == 0 then mark_mode = false else mark_mode = true end
+    --if rulerlayout%8 >= 4 then tempo_mode = 1 else tempo_mode = 0 end
+    if rulerlayout&4 == 0 then tempo_mode = 1 else tempo_mode = 0 end
+    --if rulerlayout%32 >= 24 then time_mode, time_offs = 1, 14 else time_mode, time_offs = 0, 0 end
+    if rulerlayout&16 == 0 then time_mode, time_offs = 1, 14 else time_mode, time_offs = 0, 0 end
     
     if sys_os == 1 then
-      --height_key = 103*UI_scale//1
+      --height_key = 103*UI_scale//1 -- -- LEFT HERE FOR REFERENCE INFORMATION
       top_offs = 3
       pattern = pattern*UI_scale//1
       sec_offset = sec_offset*UI_scale//1
@@ -2945,7 +2954,7 @@
       lane_count, reg_key, mark_key = 2, 1, 1
     elseif height >= height_key+sec_offset-time_offs then
       lane_count = (height-height_key-sec_offset+time_offs)//pattern+3-tempo_mode
-      if rulerlayout%2 == 0 then 
+      if rulerlayout&1 == 0 then 
         if mark_mode == true then
           reg_key, mark_key = lane_count//2+(lane_count%2), lane_count//2
           region_h, marker_h = top_offs+pattern*reg_key, top_offs+pattern*mark_key
@@ -3194,9 +3203,8 @@
           end
           nativedraw = tonumber(nativedraw)
           osx_display = reaper.SNM_GetIntConfigVar("osxdisplayoptions", 666)
-          
           button_t = {(13*ui_scale)//1,(21*ui_scale)//1,(3*ui_scale)//1}
-          if osx_display >= 34 then 
+          if osx_display&2 then 
             font_size = math.ceil((math.floor(height*ui_scale))*0.777)
           else
             font_size = math.ceil((math.floor(height*sys_scale*ui_scale))*0.777)
