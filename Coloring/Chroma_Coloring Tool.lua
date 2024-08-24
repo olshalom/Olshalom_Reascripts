@@ -1,6 +1,6 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.8.7.2
+--  @version 0.8.7.3
 --
 --  @changelog
 --    0.8.7.1
@@ -2918,8 +2918,8 @@
     local rulerlayout = reaper.SNM_GetIntConfigVar("rulerlayout", 1)
     if rulerlayout&2 ~= 0 then mark_mode = false else mark_mode = true end
     if rulerlayout&4 ~= 0 then tempo_mode = 1 else tempo_mode = 0 end
-    if rulerlayout&16 == 0 then time_mode, time_offs = 1, 14 else time_mode, time_offs = 0, 0 end
-    
+    if rulerlayout&16 ~= 0 then time_mode, time_offs = 1, 14 else time_mode, time_offs = 0, 0 end
+
     if sys_os == 1 then
       --height_key = 103*UI_scale//1 -- -- LEFT HERE FOR REFERENCE INFORMATION
       top_offs = 3
@@ -3203,7 +3203,7 @@
           nativedraw = tonumber(nativedraw)
           osx_display = reaper.SNM_GetIntConfigVar("osxdisplayoptions", 666)
           button_t = {(13*ui_scale)//1,(21*ui_scale)//1,(3*ui_scale)//1}
-          if osx_display&2 then 
+          if osx_display&2 ~= 0 then 
             font_size = math.ceil((math.floor(height*ui_scale))*0.777)
           else
             font_size = math.ceil((math.floor(height*sys_scale*ui_scale))*0.777)
