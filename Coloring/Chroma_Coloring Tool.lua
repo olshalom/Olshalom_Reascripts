@@ -1,6 +1,6 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.8.7.3
+--  @version 0.8.7.4
 --
 --  @changelog
 --    0.8.7.1
@@ -2904,7 +2904,7 @@
   
   local function GetRulerMouseContext(mouse_pos, scale, UI_scale)
     
-    local height_key, top_offs, lane_count, mark_mode, tempo_mode, time_mode, sec_offset, time_offs, mark_key, reg_key, timeline
+    local height_key, top_offs, lane_count, mark_mode, tempo_mode, sec_offset, time_offs, mark_key, reg_key, timeline
     local region_h, marker_h, mouse_section, mouse_section_lane, marker_lane_ytop, marker_lane_yheight, marker_lane_ystart
     local pattern = 17
     local timeline_mode = reaper.SNM_GetIntConfigVar("projtimemode", 1)
@@ -2918,7 +2918,7 @@
     local rulerlayout = reaper.SNM_GetIntConfigVar("rulerlayout", 1)
     if rulerlayout&2 ~= 0 then mark_mode = false else mark_mode = true end
     if rulerlayout&4 ~= 0 then tempo_mode = 1 else tempo_mode = 0 end
-    if rulerlayout&16 ~= 0 then time_mode, time_offs = 1, 14 else time_mode, time_offs = 0, 0 end
+    if rulerlayout&16 ~= 0 and rulerlayout&8 ~= 0 then time_offs = 14 else time_offs = 0 end
 
     if sys_os == 1 then
       --height_key = 103*UI_scale//1 -- -- LEFT HERE FOR REFERENCE INFORMATION
@@ -2953,7 +2953,6 @@
     elseif height >= height_key+sec_offset-time_offs then
       lane_count = (height-height_key-sec_offset+time_offs)//pattern+3-tempo_mode
       if rulerlayout&1 == 0 then 
-      --if rulerlayout&1 ~= 0 then 
         if mark_mode == true then
           reg_key, mark_key = lane_count//2+(lane_count%2), lane_count//2
           region_h, marker_h = top_offs+pattern*reg_key, top_offs+pattern*mark_key
