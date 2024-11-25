@@ -4558,7 +4558,7 @@ end
 -- EXECUTE --
 
 if reaper.set_action_options then
-  reaper.set_action_options(3)
+  reaper.set_action_options(1)
 end
 
 defer(loop)
