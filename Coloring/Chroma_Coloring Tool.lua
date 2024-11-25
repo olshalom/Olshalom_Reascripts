@@ -1,6 +1,6 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.8.8
+--  @version 0.8.8.1
 --  @date 25.11.24
 --  @changelog
 --    0.8.8
@@ -4556,9 +4556,9 @@ end
 
 
 -- EXECUTE --
-
 if reaper.set_action_options then
-  reaper.set_action_options(1)
+  reaper.set_action_options(5)
+  reaper.atexit(reaper.set_action_options(8))
 end
 
 defer(loop)
@@ -4576,3 +4576,4 @@ reaper.atexit(function()
       reaper.Main_OnCommand(set_cntrl.keep_running2, 0)
     end
   end)
+  
