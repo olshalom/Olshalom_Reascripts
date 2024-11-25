@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="d45e2c287751f73326804d53c928997589edbc60">
+<index version="1" name="Olshalom_Reascripts" commit="a8f0b4071ede4b54ec27493cb1b346b5179f6de7">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -473,6 +473,30 @@ Bug fixes:
     > Make font size look the same for WinOs and MacOs
     > straighten out code under the hood]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/d45e2c287751f73326804d53c928997589edbc60/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.8.8.1" author="olshalom, vitalker" time="2024-11-25T13:54:23Z">
+        <changelog><![CDATA[0.8.8
+  NEW features:
+    > All actions implemented for markers/regions and their manager
+    > static mode for Region/Marker Manager
+    > Rightclick "Actions Menu" for all color buttons
+    > "Get selected color(s) to button(s)" added as well for "Edit custom Color" and "Last touched"
+    > Show Mouse Modifier description in Menubar when widgets with modifiers are hovered
+    > Tooltips with description for some widgets
+    > Ghostmode for Menubar (hide menus at the top)
+    > Option for: open at mouse position (Settings)
+    > Resize window when tick/untick sections
+    > All widgets and fonts are now resizeable
+    > Automatically color new tracks when files are imported via drag'n'drop
+    > Automatically color auto added tracks when items are dragged to bottom of tracklist
+
+  Improvements:
+    > Reorganized Mousemodifiers (significant changes!!)
+    > Reset/set/edit custom color buttons functionalty via mousemodifiers
+    > Get Palette Menu to the foreground if already open 
+    > Make font size look the same for WinOs and MacOs
+    > straighten out code under the hood]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/a8f0b4071ede4b54ec27493cb1b346b5179f6de7/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
     <reapack name="Discrete Auto Coloring (Chroma_Extension).lua" type="script" desc="Discrete Auto Coloring (Chroma_Exntension)">
