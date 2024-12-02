@@ -1,8 +1,19 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.8.8.1
---  @date 25.11.24
+--  @version 0.8.8.2
+--  @date 02.12.24
 --  @changelog
+--    0.8.8.2
+--    Bug fixes:
+--        > fix automatically color new items when set to custom color (advanced settings)
+--        > when set main palette color settings, reset highlighting
+--        > when reset main or custom palette, also reset highlighting
+--        > switching between tracks and items under specific corner cases
+--        
+--    Imrpovements:
+--        > refinement of "Color_new_items_automatically" function
+--        > gradient coloring in Rightclick Menu 
+--    
 --    0.8.8
 --      NEW features:
 --        > All actions implemented for markers/regions and their manager
@@ -517,10 +528,8 @@ local arrange = reaper.JS_Window_FindChildByID(main, 0x3E8)
 local TCPDisplay = reaper.JS_Window_FindEx(main, main, "REAPERTCPDisplay", "" )
 local seen_msgs = {}
 local msgs = 'WM_LBUTTONDOWN'
-local msgs2 = 'WM_LBUTTONUP'
 
 reaper.JS_WindowMessage_Intercept(ruler_win, msgs, true)
-reaper.JS_WindowMessage_Intercept(ruler_win, msgs2, true)
 reaper.JS_WindowMessage_Intercept(arrange, msgs, true)
 reaper.JS_WindowMessage_Intercept(TCPDisplay, msgs, true)
 
@@ -1075,12 +1084,11 @@ end
 
 -- COLOR NEW ITEMS AUTOMATICALLY --
 local function Color_new_items_automatically(init_state, sel_items, go) 
-  if automode_id == 1 and go then
+  if selected_mode == 1 and automode_id == 1 and go then
     if (Undo_CanUndo2(0)=='Insert new MIDI item'
       or Undo_CanUndo2(0)=='Insert media items'
         or Undo_CanUndo2(0)=='Recorded media'
           or Undo_CanUndo2(0)=='Insert empty item') then
-          
       PreventUIRefresh(1) 
       for i=0, sel_items -1 do
         local item = GetSelectedMediaItem(0, i)
@@ -1096,6 +1104,32 @@ local function Color_new_items_automatically(init_state, sel_items, go)
         PreventUIRefresh(1) 
         local tr_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(item), "IP_TRACKNUMBER")
         SetMediaItemInfo_Value(item, "I_CUSTOMCOLOR", col_tbl.it[tr_ip] )
+        UpdateArrange()
+        PreventUIRefresh(-1) 
+      end
+    end
+  elseif automode_id == 2 and go then
+    if (Undo_CanUndo2(0)=='Insert media items'
+        or Undo_CanUndo2(0)=='Recorded media') then
+      PreventUIRefresh(1) 
+      for i=0, sel_items -1 do
+        local item = GetSelectedMediaItem(0, i)
+        SetMediaItemTakeInfo_Value(GetActiveTake(item), "I_CUSTOMCOLOR", ImGui.ColorConvertNative(rgba >>8)|0x1000000)
+        if selected_mode == 1 then
+          SetMediaItemInfo_Value(item, "I_CUSTOMCOLOR", Background_color_rgba(rgba))
+        end
+      end
+      UpdateArrange()
+      PreventUIRefresh(-1)
+    elseif Undo_CanUndo2(0)=='Add media item via pencil' then
+      local x, y = reaper.GetMousePosition()
+      local item = reaper.GetItemFromPoint(x-10, y,1)
+      if item then
+        PreventUIRefresh(1) 
+        SetMediaItemTakeInfo_Value(GetActiveTake(item), "I_CUSTOMCOLOR", ImGui.ColorConvertNative(rgba >>8)|0x1000000)
+        if selected_mode == 1 then
+          SetMediaItemInfo_Value(item, "I_CUSTOMCOLOR", Background_color_rgba(rgba))
+        end
         UpdateArrange()
         PreventUIRefresh(-1) 
       end
@@ -1900,13 +1934,14 @@ function item_track_color_to_custom_palette(m, div)
         if (m+i-1)%div == 0 then calc = div else calc = (m+i-1)%div end
         custom_palette[calc] = sel_color[i]
       end
-      cust_tbl = nil
+      --cust_tbl = nil
     elseif m == -1 then
       last_touched_color = sel_color[1]
     elseif m == -2 then
       rgba = sel_color[1]
     end
   end
+  cust_tbl = nil
   pre_cntrl.differs, pre_cntrl.differs2, pre_cntrl.stop = pre_cntrl.current_item, 1, nil
 end
 
@@ -2167,6 +2202,9 @@ local function PaletteMenu(p_y, p_x, w, h)
     if button_color(0.14, 0.9, 0.7, 1, 'Reset Custom Palette', 220, 19, false, 3)  then 
       custom_palette = {}
       cust_tbl = nil
+      it_cnt_sw = nil
+      test_track_sw = nil
+      go = true
       for m = 0, 23 do
         insert(custom_palette, HSL(m / 24+0.69, 0.1, 0.2, 1))
       end
@@ -2235,7 +2273,10 @@ local function PaletteMenu(p_y, p_x, w, h)
     ImGui.PopStyleVar(ctx, 1)
     contrast_true ,darkness, lightness = ImGui.SliderDouble2(ctx, '##2', darkness, lightness, 0.12, lightness_range)
     
-    if sat_true or contrast_true then check_mark = check_mark|4 end
+    if sat_true or contrast_true then
+    check_mark, go, it_cnt_sw, test_track_sw = check_mark|4, true, nil
+    end
+    
     -- USER MAIN PALETTE PRESET --
     
     -- SAVE BUTTON --
@@ -2323,7 +2364,7 @@ local function PaletteMenu(p_y, p_x, w, h)
     
     if button_color(0.14, 0.9, 0.7, 1, 'Reset Main Palette', 220, 19, false, 3)  then 
       saturation, lightness, darkness, colorspace, set_cntrl.dont_ask = 0.8, 0.65, 0.20, 0, false
-      check_mark = check_mark|4
+      check_mark, go, it_cnt_sw, test_track_sw = check_mark|4, true, nil
     end
     
     if check_mark&4 == 4 and pre_cntrl.current_main_item > 1 and not pre_cntrl.stop2 then
@@ -2339,6 +2380,7 @@ end
 
 
 local function SettingsPopUp(size, bttn_height, spacing, fontsize)
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 3, 3) 
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 12) 
   ImGui.Dummy(ctx, 0, 0)
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
@@ -2687,7 +2729,7 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       set_cntrl.tree_node_open_save2 = false
     end
   end
-  ImGui.PopStyleVar(ctx, 1)
+  ImGui.PopStyleVar(ctx, 2)
   ImGui.PopStyleColor(ctx)
   ImGui.Dummy(ctx, 0, 0) 
 end
@@ -2700,9 +2742,9 @@ function text_pos(x, z, bol1)
   end
   local key
   if bol1 then
-    max_str = 'Get selected color to custom pal'
+    max_str = 'Color items to gradient (define first) '
   else
-    max_str = 'Get selected color to custom palette '
+    max_str = 'Color items to gradient hell(define first) '
   end
   local k = str(max_str) + str(max_str)-str(z) - str(x)-140
   return k
@@ -2711,7 +2753,7 @@ end
 
 -- ACTIONS POPUP --
 
-function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current_tbl, which_item)
+function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current_tbl, which_item, in_table)
   local  cntrl_key, alt_key
   if sys_os == 1 then cntrl_key, alt_key  = 'CMD', 'OPTION' else cntrl_key, alt_key = 'CTRL', 'ALT' end
   ImGui.Dummy(ctx, 0, 20)
@@ -2724,6 +2766,8 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
   local button_text2 = 'Color children to parent'
   local button_text6 = 'Get selected color(s) to button(s)'
   local button_text7 = 'Reset custom palette button'
+  local button_text8 
+  
   if items_mode == 1 then
     button_text1 = 'Set items to default color'
     button_text3 = 'Color items to gradient'
@@ -2743,14 +2787,22 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
   local selectable_flags = ImGui.SelectableFlags_DontClosePopups
   
   local stay
-  if which_item&8 ~= 0 then stay = true else stay = false end
+  if which_item&8 ~= 0 then stay, button_text8 = true, ' (define first)' else stay, button_text8 = false, '' end
   
   local width
-  if which_item&4 ~= 0 then width = true else stay = false end
+  if which_item&4 ~= 0 then width = true else width = false end
   
   local first_in
-  if pop_key == -2 then first_in = rgba elseif pop_key == -1 then first_in = last_touched_color else first_in = sel_color[1] end
-
+  if pop_key == -2 then
+    first_in = rgba
+  elseif pop_key == -1 then 
+    first_in = last_touched_color
+  elseif in_table then
+    first_in = in_table[pop_key]
+  else   
+    first_in = sel_color[1]
+  end
+  
   if ImGui.Selectable(ctx, button_text1, p_selected1, selectable_flags, 0, 0) then
     Reset_to_default_color(sel_items, sel_tracks) 
   end
@@ -2759,11 +2811,12 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
       color_childs_to_parentcolor(sel_tracks, tr_cnt) 
     end
   end
-  if ImGui.Selectable(ctx, button_text3, p_selected3, selectable_flags, 0, 0) then
+  if ImGui.Selectable(ctx, button_text3..button_text8, p_selected3, selectable_flags, 0, 0) then
+    sel_color[1] = custom_palette[pop_key]
     Color_selected_elements_with_gradient(sel_tracks, sel_items, first_in, sel_color[#sel_color], stay)
   end
   if which_item&32 ~= 0 then
-    local text_pos1 = text_pos(cntrl_key.."+SHIFT", button_text3, width)
+    local text_pos1 = text_pos(cntrl_key.."+SHIFT", button_text3..button_text8, width)
     ImGui.SameLine(ctx, 0, text_pos1)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
     ImGui.Text(ctx, cntrl_key.."+SHIFT")
@@ -2798,7 +2851,8 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
   if which_item&16 ~= 0 then
     if ImGui.Selectable(ctx, button_text6, p_selected6, selectable_flags, 0, 0) then
       item_track_color_to_custom_palette(pop_key, 24)
-      it_cnt_sw = nil 
+      it_cnt_sw = nil
+      test_track_sw = nil
     end
     if which_item&32 ~= 0 then
       local text_pos4 = text_pos(cntrl_key.."+"..alt_key, button_text6, width)
@@ -3463,8 +3517,6 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
       shortcut_text = modifier_text[9]
     end
   end
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif)
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffffffff) col2=col2+1
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 5) 
   if ImGui.IsItemHovered(ctx, ImGui.HoveredFlags_DelayNormal | ImGui.HoveredFlags_NoSharedDelay) and set_cntrl.tooltip_info then
@@ -3487,13 +3539,13 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
   end
 
   -- GREEN DOT --
-  if selected_mode == 1 then
+  if selected_mode == 1 then   
     ImGui.PushStyleColor(ctx, ImGui.Col_Border, HSV(0.555, 0.1, 0.39, 1)); col2=col2+1
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize,size*0.05); var2=var2+1
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize,0); var2=var2+1
     ImGui.PushStyleVar (ctx, ImGui.StyleVar_FramePadding, 0, 0); var2=var2+1
     local font_size = ImGui.GetFontSize(ctx)
     ImGui.SameLine(ctx, -1, av_x-size*3.5+sides-font_size-size*0.4)
-    ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)+(menu_h-font_size)*0.5)
+    ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)+(menu_h-font_size-size*0.1)*0.5)
     ImGui.RadioButtonEx(ctx, '##', selected_mode, 1)
     if ImGui.IsItemHovered(ctx, ImGui.HoveredFlags_DelayNormal | ImGui.HoveredFlags_NoSharedDelay) and set_cntrl.tooltip_info then
       ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 4)
@@ -3606,7 +3658,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   local cur_fontsize = reaper.ImGui_GetFontSize(ctx)
   local h_calc = title_h
   local mods_retval = ImGui.GetKeyMods(ctx)
-
+  
   -- DEFINE "GLOBAL" VARIABLES --
   if go then
     sel_items = CountSelectedMediaItems(0)
@@ -3628,7 +3680,6 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   local rvs2 = select(3, reaper.JS_WindowMessage_Peek(arrange, msgs))
   local rvs3 = select(3, reaper.JS_WindowMessage_Peek(TCPDisplay, msgs))
   local _, rvs4, _, win = IsManagerWindow()
-  local rvs5 = select(3, reaper.JS_WindowMessage_Peek(ruler_win, msgs2))
     
   -- IF UNDO THEN RESET CACHES --
   if go
@@ -3680,7 +3731,6 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   if not openSettingWnd then
     nextitemforeground = nil
   end
-  
   
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, size2*0.17, size2*frame_paddingY)
   local var = 0 
@@ -3759,8 +3809,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   end
   
   -- WHEN MARKERS OR REGIONS MOVED --
-  if items_mode == 3
-    and go
+  if items_mode == 3 and go
       and (Undo_CanUndo2(0)=='Move marker'
         or Undo_CanUndo2(0)=='Reorder region') then
     seen_msgs[1] = nil
@@ -3797,9 +3846,11 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   -- MOUSE CLICK ARRANGE --
   elseif rvs2 ~= (seen_msgs[2] or 0) and (static_mode == 0 or static_mode == 2) then
     if sel_items > 0 then
+      it_cnt_sw = nil
       if test_item then
         test_take = GetActiveTake(test_item)
         test_track_it = GetMediaItemTrack(test_item)
+        test_track_sw = nil
       end
       if (static_mode == 0 or static_mode == 2) then
         items_mode = 1
@@ -3807,6 +3858,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     elseif sel_tracks > 0 then
       if static_mode == 0 then
         items_mode = 0
+        test_item = nil
       end
     else
       if static_mode == 0 then
@@ -3819,25 +3871,6 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   elseif rvs3 ~= (seen_msgs[3] or 0) and (static_mode == 0 or static_mode == 1) then
     items_mode = 0
     seen_msgs[3] = rvs3
-  elseif rvs5 ~= (seen_msgs[5] or 0) and (static_mode == 0 or static_mode == 2) and items_mode == 1 then
-    local shift = reaper.JS_Mouse_GetState(0x000C) 
-    if shift ~= 8 or shift == 4 then
-      if sel_tracks > 0 then
-        if static_mode == 0 then
-          items_mode = 0
-          it_cnt_sw = nil
-          sel_items = CountSelectedMediaItems(0)
-        end
-      else
-        if static_mode == 0 then
-          items_mode = 2
-          it_cnt_sw = nil
-          sel_items = CountSelectedMediaItems(0)
-        end
-        sel_color = {}
-      end
-    end
-    seen_msgs[5] = rvs5
   end
   
   -- NON CLICKING CONDITIONS --
@@ -3852,10 +3885,11 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   end
   
   -- CALLING FUNCTIONS -- 
+  Color_new_items_automatically(init_state, sel_items, go)
   get_sel_items_or_tracks_colors(sel_items, sel_tracks, test_item, test_take, test_track) 
+  
   do
     if selected_mode == 1 then
-      Color_new_items_automatically(init_state, sel_items, go)
       if test_item and sel_items > 0 and sel_items < 60001 then
         local item_track = GetMediaItemTrack(test_item)
         if item_sw == test_item and track_sw2 ~= item_track then
@@ -3872,7 +3906,6 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       reselect_take(init_state, sel_items, item_track) 
     end
   end
-
 
   -- -- ==== MIDDLE PART ==== -- --
   
@@ -3900,7 +3933,6 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       if highlight2 == false then
         palette_button_flags2 = palette_button_flags2 | ImGui.ColorEditFlags_NoBorder
       end
-      
       if ImGui.ColorButton(ctx, '##palette2', custom_palette[m], palette_button_flags2, size, size) then
         if mods_retval == 16384 then
           backup_color, rgba2 = custom_palette[m], custom_palette[m]
@@ -3951,8 +3983,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       if ImGui.BeginPopupContextItem(ctx, '##Settings5') then
         ImGui.PopFont(ctx)
         ImGui.PushFont(ctx, sans_serif)
-        sel_color[1] =custom_palette[m]
-        ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, m, cust_tbl, 123)
+        ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, m, cust_tbl, 123, custom_palette)
         ImGui.PopFont(ctx)
         ImGui.PushFont(ctx, buttons_font2)
         ImGui.EndPopup(ctx)
@@ -4026,12 +4057,8 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 5)
     
     -- APPLY CUSTOM COLOR --
-    if ImGui.ColorButton(ctx, 'Apply custom color##3', rgba, ImGui.ColorEditFlags_NoBorder, size, size)
-      or automode_id == 2
-        and ((not cur_state or cur_state < init_state)
-          and (Undo_CanUndo2(0)=='Insert media items'
-            or Undo_CanUndo2(0)=='Recorded media')) then
-      local cur_state = init_state
+   
+    if ImGui.ColorButton(ctx, 'Apply custom color##3', rgba, ImGui.ColorEditFlags_NoBorder, size, size) then
       coloring(sel_items, sel_tracks, ImGui.ColorConvertNative(rgba >>8)|0x1000000, Background_color_rgba(rgba), mods_retval, rgba, tr_cnt, -2, 1, 'custom')
       if mods_retval ~= 20480 then
         last_touched_color = rgba
@@ -4190,8 +4217,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       if ImGui.BeginPopupContextItem(ctx, '##Settings4') then
         ImGui.PopFont(ctx)
         ImGui.PushFont(ctx, sans_serif)
-        sel_color[1] = main_palette[n]
-        ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, n, pal_tbl, 45)
+        ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, n, pal_tbl, 45, main_palette)
         ImGui.EndPopup(ctx)
         ImGui.PopFont(ctx)
         ImGui.PushFont(ctx, buttons_font2)
@@ -4373,10 +4399,10 @@ local function CollapsedPalette(init_state)
   end
   
   -- CALLING FUNCTIONS --
+  Color_new_items_automatically(init_state, sel_items, go)
   get_sel_items_or_tracks_colors(sel_items, sel_tracks,test_item, test_take, test_track)
   
   if selected_mode == 1 then
-    Color_new_items_automatically(init_state, sel_items, go)
     if test_item and sel_items > 0 and sel_items < 60001 then
       local item_track = GetMediaItemTrack(test_item)
       if item_sw == test_item and track_sw2 ~= item_track then
@@ -4391,14 +4417,6 @@ local function CollapsedPalette(init_state)
       AutoItem(Func_mode, track_sw2, item_track, init_state)
     end
     reselect_take(init_state, sel_items, item_track) 
-  end
-  
-  if ((Undo_CanUndo2(0)=='Insert media items'
-    or Undo_CanUndo2(0)=='Recorded media')
-      and (not cur_state or cur_state<init_state))
-        and automode_id == 2  then
-    cur_state = GetProjectStateChangeCount(0)
-    coloring_cust_col(sel_items, sel_tracks, in_color) 
   end
 end
 
@@ -4556,17 +4574,20 @@ end
 
 
 -- EXECUTE --
-if reaper.set_action_options then
-  reaper.set_action_options(5)
-  reaper.atexit(reaper.set_action_options(8))
+
+function Exit()
+  reaper.set_action_options(8)
 end
+
+
+reaper.atexit(Exit)
+reaper.set_action_options(1|4)
 
 defer(loop)
 
 reaper.atexit(function()
   save_current_settings()
   reaper.JS_WindowMessage_Release(ruler_win, msgs)
-  reaper.JS_WindowMessage_Release(ruler_win, msgs2)
   reaper.JS_WindowMessage_Release(arrange, msgs)
   reaper.JS_WindowMessage_Release(TCPDisplay, msgs)
 end)
