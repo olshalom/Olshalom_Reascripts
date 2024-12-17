@@ -1,8 +1,16 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.8.8.2
---  @date 02.12.24
+--  @version 0.8.8.3
+--  @date 17.12.24
 --  @changelog
+--    0.8.8.3
+--    Improvements:
+--        > support duplicate tracks with item content in shinycolors mode
+--        > refine coloring children to parent in actionmenu
+--
+--    Bug fixes:
+--        > fix preview color for EditCustomColor ColorPicker Popup
+--
 --    0.8.8.2
 --    Bug fixes:
 --        > fix automatically color new items when set to custom color (advanced settings)
@@ -358,6 +366,12 @@ if set_cntrl.open_at_mouse then set_cntrl.open_at_mouse_true = true end
 
 
 -- PREDEFINE VALUES AS LOCAL--
+local items_mode, item_sw, takecolor2, projfn2, h, av_y, sel_mk
+local button_text1, button_text2, button_text3, button_text4, button_text5       
+local remainder, init_state_saved, max_x, max_y, go, ImGui_scale2, mouse_over
+local old_project, track_number_stop, tr_cnt_sw, padding_x, padding_y
+local set_pos, takelane_mode2, visible2, nextitemforeground, timer2
+local static_mode, resize, can_re, counter = 0, 0, "", 0
 local test_take, test_take2, test_track_it, test_item_sw, test_track_sw, sel_items, sel_items_sw, it_cnt_sw, track_sw2
 local sel_tracks2 = 0      
 local tr_txt = '##No_selection' 
@@ -378,12 +392,6 @@ local show_mainpalette    = loadsetting("show_mainpalette", true)
 local show_seperators     = loadsetting("show_seperators", true)  
 local auto_trk            = loadsetting("auto_trk", true)
 local w                   = loadsetting2("w", 777)
-local items_mode, item_sw, takecolor2, projfn2, h, av_y, sel_mk
-local button_text1, button_text2, button_text3, button_text4, button_text5       
-local remainder, init_state_saved, max_x, max_y, go, ImGui_scale2, mouse_over
-local old_project, track_number_stop, tr_cnt_sw, padding_x, padding_y
-local set_pos, takelane_mode2, visible2, nextitemforeground, timer2
-local static_mode, resize, can_re, counter = 0, 0, "", 0
 local check_mark = 0
 local sides = w/44.671349
 local av_x = w-(sides*2)
@@ -545,7 +553,7 @@ do
     local i = 0
     repeat
       local cmd, name = reaper.kbd_enumerateActions(0,i)
-      if name:find("^Script: Chroma_Discrete Coloring") then
+      if name:find("^Script: Discrete Auto Coloring (Chroma_Extension)") then
         state = reaper.GetToggleCommandState(cmd)
         set_cntrl.keep_running2 = cmd
         if state == 1 then
@@ -830,66 +838,68 @@ local function get_sel_items_or_tracks_colors(sel_items, sel_tracks, test_item, 
       local itemcolor, different
       index = index+1
       local item = GetSelectedMediaItem(0,i) 
-      sel_tbl.it[index] = item
-      local take = GetActiveTake(item)
-      sel_tbl.tke[index] = take
-      local itemtrack = GetMediaItemTrack(item)
-      sel_tbl.it_tr[index] = itemtrack
-      if itemtrack ~= itemtrack2 then
-        tr_index, itemtrack2, different = tr_index+1, itemtrack, 1
-        sel_tbl.tr[tr_index] = itemtrack
-      end
-      if selected_mode == 1 then
-        if take then 
-          itemcolor = GetMediaItemTakeInfo_Value(take,"I_CUSTOMCOLOR")
-          if itemcolor == 0 then
-            it_index = it_index +1
-            if different or not trk_ip then
-              trk_ip = GetMediaTrackInfo_Value(itemtrack, "IP_TRACKNUMBER")  
-              itemcolor = col_tbl.tr_int[trk_ip]
-            else
-              itemcolor = nil
+      if item then
+        sel_tbl.it[index] = item
+        local take = GetActiveTake(item)
+        sel_tbl.tke[index] = take
+        local itemtrack = GetMediaItemTrack(item)
+        sel_tbl.it_tr[index] = itemtrack
+        if itemtrack ~= itemtrack2 then
+          tr_index, itemtrack2, different = tr_index+1, itemtrack, 1
+          sel_tbl.tr[tr_index] = itemtrack
+        end
+        if selected_mode == 1 then
+          if take then 
+            itemcolor = GetMediaItemTakeInfo_Value(take,"I_CUSTOMCOLOR")
+            if itemcolor == 0 then
+              it_index = it_index +1
+              if different or not trk_ip then
+                trk_ip = GetMediaTrackInfo_Value(itemtrack, "IP_TRACKNUMBER")  
+                itemcolor = col_tbl.tr_int[trk_ip]
+              else
+                itemcolor = nil
+              end
+              move_tbl.trk_ip[it_index] = trk_ip 
+              move_tbl.it[it_index] = item  
             end
-            move_tbl.trk_ip[it_index] = trk_ip 
-            move_tbl.it[it_index] = item  
-          end
-        else
-          itemcolor = GetMediaItemInfo_Value(item,"I_CUSTOMCOLOR")
-          if itemcolor ~= same_col then
-            same_col = false
-          end
-          if itemcolor == same_col then
-            it_index, itemcolor = it_index +1, nil
-            move_tbl.trk_ip[it_index] = trk_ip
-            move_tbl.it[it_index] = item
-          elseif different or not same_col then
-            trk_ip = GetMediaTrackInfo_Value(itemtrack, "IP_TRACKNUMBER")
-            if itemcolor == col_tbl.it[trk_ip] then
-              same_col, it_index = itemcolor, it_index +1
-              itemcolor = col_tbl.tr_int[trk_ip]
+          else
+            itemcolor = GetMediaItemInfo_Value(item,"I_CUSTOMCOLOR")
+            if itemcolor ~= same_col then
+              same_col = false
+            end
+            if itemcolor == same_col then
+              it_index, itemcolor = it_index +1, nil
               move_tbl.trk_ip[it_index] = trk_ip
               move_tbl.it[it_index] = item
-            else
-              for i=1, #pal_tbl.it do
-                if pal_tbl.it[i] == itemcolor then
-                  itemcolor = pal_tbl.tr[i]
-                  col_found = true
-                  break
-                end
-              end
-              if not col_found then
-                for i=1, #cust_tbl.it do
-                  if cust_tbl.it[i] == itemcolor then
-                    itemcolor = cust_tbl.tr[i]
+            elseif different or not same_col then
+              trk_ip = GetMediaTrackInfo_Value(itemtrack, "IP_TRACKNUMBER")
+              if itemcolor == col_tbl.it[trk_ip] then
+                same_col, it_index = itemcolor, it_index +1
+                itemcolor = col_tbl.tr_int[trk_ip]
+                move_tbl.trk_ip[it_index] = trk_ip
+                move_tbl.it[it_index] = item
+              else
+                for i=1, #pal_tbl.it do
+                  if pal_tbl.it[i] == itemcolor then
+                    itemcolor = pal_tbl.tr[i]
+                    col_found = true
                     break
+                  end
+                end
+                if not col_found then
+                  for i=1, #cust_tbl.it do
+                    if cust_tbl.it[i] == itemcolor then
+                      itemcolor = cust_tbl.tr[i]
+                      break
+                    end
                   end
                 end
               end
             end
           end
+        else
+          itemcolor = GetDisplayedMediaItemColor(item)
         end
-      else
-        itemcolor = GetDisplayedMediaItemColor(item)
       end
       if itemcolor and itemcolor ~= itemcolor_sw  then
         itemcolor = IntToRgba(itemcolor)
@@ -954,13 +964,53 @@ local function generate_trackcolor_table(tr_cnt)
     index = index+1
     local track = GetTrack(0,i)
     local trackcolor = GetTrackColor(track)
-    col_tbl.tr[index] = IntToRgba(trackcolor)
-    col_tbl.it[index] = background_color_native(trackcolor)
-    col_tbl.tr_int[index] = trackcolor
-    col_tbl.ptr[index] = track
-    col_tbl.ip[index] = GetMediaTrackInfo_Value(track, 'IP_TRACKNUMBER')
+    col_tbl.tr[index], col_tbl.it[index] = IntToRgba(trackcolor), background_color_native(trackcolor)
+    col_tbl.tr_int[index], col_tbl.ptr[index], col_tbl.ip[index] = trackcolor, track, GetMediaTrackInfo_Value(track, 'IP_TRACKNUMBER')
   end
   return col_tbl
+end
+
+-- PREPARE BACKGROUND COLOR FOR SHINYCOLORS MODE RGBA (DOUBLE4) --
+function Background_color_rgba(color)
+  local r, g, b, a = ImGui.ColorConvertU32ToDouble4(color)
+  local h, s, v = ImGui.ColorConvertRGBtoHSV(r, g, b)
+  local s=s/3.7
+  local v=v+((0.92-v)/1.3)
+  if v > 0.99 then v = 0.99 end
+  local background_color = ImGui.ColorConvertNative(HSV(h, s, v, 1.0) >> 8)|0x1000000
+  return background_color
+end
+
+
+-- PREPARE BACKGROUND COLOR FOR SHINYCOLORS MODE INTEGER --
+function background_color_native(color)
+  local r, g, b = ColorFromNative(color)
+  local h, s, v = ImGui.ColorConvertRGBtoHSV(r/255, g/255, b/255)
+  local s=s/3.7
+  local v=v+((0.92-v)/1.3)
+  if v > 0.99 then v = 0.99 end
+  local background_color = ImGui.ColorConvertNative(HSV(h, s, v, 1.0) >> 8)|0x1000000
+  return background_color
+end 
+
+
+local function Color_items_to_track_color_in_shiny_mode(track, background_color)
+  for j=0, GetTrackNumMediaItems(track) -1 do
+    local trackitem = GetTrackMediaItem(track, j)
+    local take = GetActiveTake(trackitem) 
+    if take then
+      local tracktakecolor = GetMediaItemTakeInfo_Value(take,"I_CUSTOMCOLOR")
+      if tracktakecolor == 0 then
+        SetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR", background_color)
+      end
+    else
+      local trackitemcolor = GetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR")
+      local trackip = GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
+      if trackitemcolor == col_tbl.it[trackip] then
+        SetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR", background_color)
+      end
+    end
+  end
 end
 
 
@@ -1195,106 +1245,102 @@ local function Reset_to_default_color(sel_items, sel_tracks)
 end
 
 
--- GRADIENT COLORING --
-local function Color_selected_elements_with_gradient(sel_tracks, sel_items, first_color, last_color, stay) 
-  local function track_gradient(value_r, value_g, value_b, firstcolor_r, r_step, firstcolor_g, g_step, firstcolor_b, b_step, i)
-    PreventUIRefresh(1)  
-    Undo_BeginBlock2(0) 
-    for i=i,sel_tracks-1 do 
-      local value_r, value_g, value_b = (0.5+firstcolor_r*255+r_step*i)//1, (0.5+firstcolor_g*255+g_step*i)//1, (0.5+firstcolor_b*255+b_step*i)//1 
-      SetTrackColor(sel_tbl.tr[i+1], ColorToNative(value_r, value_g, value_b)) 
-      if selected_mode == 1 then 
-        Color_items_to_track_color_in_shiny_mode(sel_tbl.tr[i+1], Background_color_R_G_B(value_r, value_g, value_b)) 
-      end 
-    end
-    col_tbl, sel_tracks2 = nil, nil
-    Undo_EndBlock2(0, "CHROMA: Color selected tracks with gradient colors", 1) 
-    PreventUIRefresh(-1) 
+local function Color_selected_elements_with_gradient(sel_tracks, sel_items, first, last, stay) 
+  local function Background_color_R_G_B(r,g,b)
+    local h, s, v = ImGui.ColorConvertRGBtoHSV(r, g, b)
+    local s=s/3.7
+    local v=v+((0.92-v)/1.3)
+    if v > 0.99 then v = 0.99 end
+    local background_color = ImGui.ColorConvertNative(HSV(h, s, v, 1.0) >> 8)|0x1000000
+    return background_color
   end
-  
-  local function item_gradient(value_r, value_g, value_b, firstcolor_r, r_step, firstcolor_g, g_step, firstcolor_b, b_step, i)
-    Undo_BeginBlock2(0)
-    PreventUIRefresh(1) 
-    for i=i,sel_items-1 do
-      local value_r, value_g, value_b = (0.5+firstcolor_r*255+r_step*i)//1, (0.5+firstcolor_g*255+g_step*i)//1, (0.5+firstcolor_b*255+b_step*i)//1
-      if selected_mode == 1 then
-        SetMediaItemInfo_Value(sel_tbl.it[i+1], "I_CUSTOMCOLOR", Background_color_R_G_B(value_r, value_g, value_b))
-        if sel_tbl.tke[i+1] then
-          SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1], "I_CUSTOMCOLOR", ColorToNative(value_r, value_g, value_b)|0x1000000)
-        end
-      else
-        if sel_tbl.tke[i+1] then
-          SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1], "I_CUSTOMCOLOR", ColorToNative(value_r, value_g, value_b)|0x1000000)
-        else
-          SetMediaItemInfo_Value(sel_tbl.it[i+1], "I_CUSTOMCOLOR", ColorToNative(value_r, value_g, value_b)|0x1000000)
-        end    
-      end
-    end
-    it_cnt_sw = nil 
-    UpdateArrange()
-    Undo_EndBlock2(0, "CHROMA: Color selected items with gradient colors", 4) 
-    PreventUIRefresh(-1)
-  end
-  
-  local function markers_gradient(value_r, value_g, value_b, firstcolor_r, r_step, firstcolor_g, g_step, firstcolor_b, b_step, i)
-    Undo_BeginBlock2(0)
-    PreventUIRefresh(1) 
-    for i= i, #sel_markers.retval-1  do
-      local value_r, value_g, value_b = (0.5+firstcolor_r*255+r_step*i)//1, (0.5+firstcolor_g*255+g_step*i)//1, (0.5+firstcolor_b*255+b_step*i)//1
-      local n = sel_markers.retval[i+1]
-      reaper.SetProjectMarker4(0, rv_markers.markrgnindexnumber[n], rv_markers.isrgn[n],
-      rv_markers.pos[n], rv_markers.rgnend[n], rv_markers.name[n], ColorToNative(value_r, value_g, value_b)|0x1000000, 0)
-      rv_markers.color[n] = ColorToNative(value_r, value_g, value_b)|0x1000000
-    end
-    UpdateArrange()
-    Undo_EndBlock2(0, "CHROMA: Color selected markers/regions with gradient colors", 8) 
-    PreventUIRefresh(-1)
-  end
-  
   local selection
+  
   if items_mode == 0 then selection = sel_tracks elseif items_mode == 1 then selection = sel_items elseif items_mode == 3 then selection = #sel_markers.retval end
-
+  
   if selection > 1 then 
-    if first_color == 255 and last_color == 255 then
-      first_color = main_palette[1] 
-      last_color = main_palette[16] 
+    local first_r, first_g, first_b, last_r, last_g, last_b
+    if first == 255 and last == 255 then
+      first_r, first_g, first_b = ImGui.ColorConvertU32ToDouble4(main_palette[1])
+      last_r, last_g, last_b = ImGui.ColorConvertU32ToDouble4(main_palette[16]) 
       stay = true
-    elseif first_color == 255 then 
-      local r, g, b, a = ImGui.ColorConvertU32ToDouble4(last_color) 
+    elseif first == 255 then 
+      local r, g, b, a = ImGui.ColorConvertU32ToDouble4(last) 
       local h, s, v = ImGui.ColorConvertRGBtoHSV(r, g, b) 
-      if h+0.667 > 1 then h2 = h+0.667-1 else h2= h+0.667 end 
-      first_color = HSV(h2, s, v, a) 
-    elseif last_color == 255 or first_color ~= 255 and last_color == first_color then 
-      local r, g, b, a = ImGui.ColorConvertU32ToDouble4(first_color) 
-      local h, s, v = ImGui.ColorConvertRGBtoHSV(r, g, b) 
-      if h+0.667 > 1 then h2 = h+0.667-1 else h2= h+0.667 end 
-      last_color = HSV(h2, s, v, a) 
-    end 
-    local r2, g2, b2, _ = ImGui.ColorConvertU32ToDouble4(last_color) 
-    local firstcolor_r, firstcolor_g, firstcolor_b, _ = ImGui.ColorConvertU32ToDouble4(first_color) 
-    local r_step = (r2*255-firstcolor_r*255)/(selection-1) 
-    local g_step = (g2*255-firstcolor_g*255)/(selection-1) 
-    local b_step = (b2*255-firstcolor_b*255)/(selection-1)
+      if h+2/3 > 1 then h = h+2/3%1 else h = h+2/3 end
+      first_r, first_g, first_b = ImGui.ColorConvertHSVtoRGB(h, s, v)
+      last_r, last_g, last_b = ImGui.ColorConvertU32ToDouble4(last) 
+      stay = true
+    elseif last == 255 or first ~= 255 and last == first then 
+      first_r, first_g, first_b= ImGui.ColorConvertU32ToDouble4(first) 
+      local h, s, v = ImGui.ColorConvertRGBtoHSV(first_r, first_g, first_b) 
+      if h+2/3 > 1 then h = h+2/3%1 else h = h+2/3 end
+      last_r, last_g, last_b = ImGui.ColorConvertHSVtoRGB(h, s, v)
+    else  
+      first_r, first_g, first_b = ImGui.ColorConvertU32ToDouble4(first)
+      last_r, last_g, last_b = ImGui.ColorConvertU32ToDouble4(last) 
+    end
+    local r_step = (last_r-first_r)/(selection-1) 
+    local g_step = (last_g-first_g)/(selection-1) 
+    local b_step = (last_b-first_b)/(selection-1)
     
     local i
     if stay then i = 0 else i = 1 end
-    
+
+    PreventUIRefresh(1) 
+    Undo_BeginBlock2(0) 
     if items_mode == 0 then
-      track_gradient(value_r, value_g, value_b, firstcolor_r, r_step, firstcolor_g, g_step, firstcolor_b, b_step, i)
+      local t = sel_tbl.tr
+      for i=i,sel_tracks-1 do 
+        local track = t[i+1]
+        local value_r, value_g, value_b = first_r+r_step*i, first_g+g_step*i, first_b+b_step*i
+        SetTrackColor(track, ColorToNative((value_r*255+.5)//1, (value_g*255+.5)//1, (value_b*255+.5)//1)|0x1000000) 
+        if selected_mode == 1 then 
+          Color_items_to_track_color_in_shiny_mode(track, Background_color_R_G_B(value_r, value_g, value_b)) 
+        end 
+      end
+      col_tbl, sel_tracks2 = nil, nil
+      Undo_EndBlock2(0, "CHROMA: Color selected tracks with gradient colors", 1) 
     elseif items_mode == 1 then
-      item_gradient(value_r, value_g, value_b, firstcolor_r, r_step, firstcolor_g, g_step, firstcolor_b, b_step, i)
-      
+      local t1, t2 = sel_tbl.it, sel_tbl.tke
+      for i=i,sel_items-1 do
+        local value_r, value_g, value_b = first_r+r_step*i, first_g+g_step*i, first_b+b_step*i
+        if selected_mode == 1 then
+          SetMediaItemInfo_Value(t1[i+1], "I_CUSTOMCOLOR", Background_color_R_G_B(value_r, value_g, value_b))
+          if t2[i+1] then
+            SetMediaItemTakeInfo_Value(t2[i+1], "I_CUSTOMCOLOR", ColorToNative((value_r*255+.5)//1, (value_g*255+.5)//1, (value_b*255+.5)//1)|0x1000000)
+          end
+        else
+          if t2[i+1] then
+            SetMediaItemTakeInfo_Value(t2[i+1], "I_CUSTOMCOLOR", ColorToNative((value_r*255+.5)//1, (value_g*255+.5)//1, (value_b*255+.5)//1)|0x1000000)
+          else
+            SetMediaItemInfo_Value(t1[i+1], "I_CUSTOMCOLOR", ColorToNative((value_r*255+.5)//1, (value_g*255+.5)//1, (value_b*255+.5)//1)|0x1000000)
+          end    
+        end
+      end
+      it_cnt_sw = nil 
+      UpdateArrange()
+      Undo_EndBlock2(0, "CHROMA: Color selected items with gradient colors", 4) 
     elseif items_mode == 3 then
-      markers_gradient(value_r, value_g, value_b, firstcolor_r, r_step, firstcolor_g, g_step, firstcolor_b, b_step, i)
+      for i= i, #sel_markers.retval-1  do
+        local value_r, value_g, value_b = first_r+r_step*i, first_g+g_step*i, first_b+b_step*i
+        local n = sel_markers.retval[i+1]
+        reaper.SetProjectMarker4(0, rv_markers.markrgnindexnumber[n], rv_markers.isrgn[n],
+        rv_markers.pos[n], rv_markers.rgnend[n], rv_markers.name[n], ColorToNative((value_r*255+.5)//1, (value_g*255+.5)//1, (value_b*255+.5)//1)|0x1000000, 0)
+        rv_markers.color[n] = ColorToNative((value_r*255+.5)//1, (value_g*255+.5)//1, (value_b*255+.5)//1)|0x1000000
+      end
+      UpdateArrange()
+      Undo_EndBlock2(0, "CHROMA: Color selected markers/regions with gradient colors", 8) 
       check_mark = check_mark|1
-      
     end
+    PreventUIRefresh(-1)
   else 
     local text_element 
     if items_mode == 0 then text_element = "tracks" elseif items_mode == 1 then text_element = "items" else text_element = "markers & regions"  end
     reaper.MB( "Select at least 3 "..text_element, "Can't create gradient colors", 0 ) 
   end 
 end
+
 
 -- COLORING FOR MAIN AND CUSTOM PALETTE WIDGETS --
 
@@ -1516,7 +1562,7 @@ end
 
 
 -- COLOR CHILDS TO PARENTCOLOR -- Thanks to ChMaha  and BirdBird for this functions
-function color_childs_to_parentcolor(sel_tracks, tr_cnt) 
+function color_childs_to_parentcolor(sel_tracks, tr_cnt, stay, first_in) 
   local function get_child_tracks(folder_track, tr_cnt)
     local all_tracks = {}
     if GetMediaTrackInfo_Value(folder_track, "I_FOLDERDEPTH") ~= 1 then
@@ -1541,8 +1587,13 @@ function color_childs_to_parentcolor(sel_tracks, tr_cnt)
   PreventUIRefresh(1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
   for i=0, sel_tracks -1 do
     local track = GetSelectedTrack(0,i)
-    local trackcolor = GetMediaTrackInfo_Value(track, "I_CUSTOMCOLOR")
-    local ip = GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
+    local trackcolor
+    if stay then 
+      trackcolor = ImGui.ColorConvertNative(first_in>> 8)
+      SetTrackColor(track, trackcolor)
+    else
+      trackcolor = GetMediaTrackInfo_Value(track, "I_CUSTOMCOLOR")
+    end
     local child_tracks = get_child_tracks(track, tr_cnt)
     for i = 1, #child_tracks do
       SetTrackColor(child_tracks[i], trackcolor)
@@ -1551,7 +1602,7 @@ function color_childs_to_parentcolor(sel_tracks, tr_cnt)
       end
     end
   end
-  col_tbl = nil    
+  col_tbl, sel_tracks2  = nil   
   if selected_mode == 1 then
     Undo_EndBlock2(0, "CHROMA: Set children to parent color", 1+4) 
   else
@@ -1561,63 +1612,8 @@ function color_childs_to_parentcolor(sel_tracks, tr_cnt)
 end
 
 
--- PREPARE BACKGROUND COLOR FOR SHINYCOLORS MODE RGBA (DOUBLE4) --
-function Background_color_rgba(color)
-  local r, g, b, a = ImGui.ColorConvertU32ToDouble4(color)
-  local h, s, v = ImGui.ColorConvertRGBtoHSV(r, g, b)
-  local s=s/3.7
-  local v=v+((0.92-v)/1.3)
-  if v > 0.99 then v = 0.99 end
-  local background_color = ImGui.ColorConvertNative(HSV(h, s, v, 1.0) >> 8)|0x1000000
-  return background_color
-end
-
-
--- PREPARE BACKGROUND COLOR FOR SHINYCOLORS MODE INTEGER --
-function background_color_native(color)
-  local r, g, b = ColorFromNative(color)
-  local h, s, v = ImGui.ColorConvertRGBtoHSV(r/255, g/255, b/255)
-  local s=s/3.7
-  local v=v+((0.92-v)/1.3)
-  if v > 0.99 then v = 0.99 end
-  local background_color = ImGui.ColorConvertNative(HSV(h, s, v, 1.0) >> 8)|0x1000000
-  return background_color
-end 
-
-
--- PREPARE BACKGROUND COLOR FOR SHINYCOLORS MODE R, G, B --
-function Background_color_R_G_B(r,g,b)
-  local h, s, v = ImGui.ColorConvertRGBtoHSV(r/255, g/255, b/255)
-  local s=s/3.7
-  local v=v+((0.92-v)/1.3)
-  if v > 0.99 then v = 0.99 end
-  local background_color = ImGui.ColorConvertNative(HSV(h, s, v, 1.0) >> 8)|0x1000000
-  return background_color
-end
-
-
-function Color_items_to_track_color_in_shiny_mode(track, background_color)
-  for j=0, GetTrackNumMediaItems(track) -1 do
-    local trackitem = GetTrackMediaItem(track, j)
-    local take = GetActiveTake(trackitem) 
-    if take then
-      local tracktakecolor = GetMediaItemTakeInfo_Value(take,"I_CUSTOMCOLOR")
-      if tracktakecolor == 0 then
-        SetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR", background_color)
-      end
-    else
-      local trackitemcolor = GetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR")
-      local trackip = GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
-      if trackitemcolor == col_tbl.it[trackip] then
-        SetMediaItemInfo_Value(trackitem,"I_CUSTOMCOLOR", background_color)
-      end
-    end
-  end
-end
-
-
 -- MULTIPLE ELEMENT COLORING --
-local function Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, first_stay, pal_tab, tab_num, random_in, tbl_tr, tbl_it, pop_key)
+function Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, first_stay, pal_tab, tab_num, random_in, tbl_tr, tbl_it, pop_key)
   function shuffled_numbers (n)
     function shuffle (arr)
       for i = 1, #arr - 1 do
@@ -1654,14 +1650,16 @@ local function Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, 
       sel_color[1] = pal_tab[pop_key]
       last_touched_color = pal_tab[pop_key] 
     end
+    local t = sel_tbl.tr
     for i=i, sel_tracks -1 do
       local value
+      local track = t[i+1]
       if random_in then value = numbers[i%pal_div+1]
       elseif color_state ==1 then if sel_tracks < 2 then value = (i+found_value)%pal_div+1 else value = (i+found_value-1)%pal_div+1 end
       else value = i%pal_div+1 end
-      SetMediaTrackInfo_Value(sel_tbl.tr[i+1],"I_CUSTOMCOLOR", mul_tbl.tr[value])
+      SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", mul_tbl.tr[value])
       if selected_mode == 1 then
-        Color_items_to_track_color_in_shiny_mode(sel_tbl.tr[i+1], mul_tbl.it[value])
+        Color_items_to_track_color_in_shiny_mode(track, mul_tbl.it[value])
       end
     end
     col_tbl, sel_tracks2 = nil, nil
@@ -1671,21 +1669,21 @@ local function Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, 
   
   local function item_path()
     PreventUIRefresh(1) 
+    local t1, t2 = sel_tbl.it, sel_tbl.tke
     if first_stay then
       if selected_mode == 1 then 
-        SetMediaItemInfo_Value(sel_tbl.it[1],"I_CUSTOMCOLOR", tbl_it)
-        if sel_tbl.tke[i+1] then 
-          SetMediaItemTakeInfo_Value(sel_tbl.tke[1],"I_CUSTOMCOLOR", tbl_tr)
+        SetMediaItemInfo_Value(t1[1],"I_CUSTOMCOLOR", tbl_it)
+        if t2[i+1] then 
+          SetMediaItemTakeInfo_Value(t2[1],"I_CUSTOMCOLOR", tbl_tr)
         end
       else
-        if sel_tbl.tke[i+1] then 
-          SetMediaItemTakeInfo_Value(sel_tbl.tke[1],"I_CUSTOMCOLOR", tbl_tr) 
+        if t2[i+1] then 
+          SetMediaItemTakeInfo_Value(t2[1],"I_CUSTOMCOLOR", tbl_tr) 
         else
-          SetMediaItemInfo_Value(sel_tbl.it[1],"I_CUSTOMCOLOR", tbl_tr)
+          SetMediaItemInfo_Value(t1[1],"I_CUSTOMCOLOR", tbl_tr)
         end
       end
-      sel_color[1] = pal_tab[pop_key]
-      last_touched_color = pal_tab[pop_key] 
+      sel_color[1], last_touched_color = pal_tab[pop_key], pal_tab[pop_key] 
     end
     for i=i, sel_items -1 do
       local value
@@ -1693,17 +1691,17 @@ local function Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, 
       elseif color_state ==1 then if sel_items < 2 then value = (i+found_value)%pal_div+1 else value = (i+found_value-1)%pal_div+1 end
       else value = i%pal_div+1 end
       if selected_mode == 1 then
-        if sel_tbl.tke[i+1] then
-          SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1], "I_CUSTOMCOLOR", mul_tbl.tr[value])
-          SetMediaItemInfo_Value(sel_tbl.it[i+1], "I_CUSTOMCOLOR", mul_tbl.it[value])  
+        if t2[i+1] then
+          SetMediaItemTakeInfo_Value(t2[i+1], "I_CUSTOMCOLOR", mul_tbl.tr[value])
+          SetMediaItemInfo_Value(t1[i+1], "I_CUSTOMCOLOR", mul_tbl.it[value])  
         else
-          SetMediaItemInfo_Value(sel_tbl.it[i+1], "I_CUSTOMCOLOR", mul_tbl.it[value])
+          SetMediaItemInfo_Value(t1[i+1], "I_CUSTOMCOLOR", mul_tbl.it[value])
         end
       else
-        if sel_tbl.tke[i+1] then
-          SetMediaItemTakeInfo_Value(sel_tbl.tke[i+1], "I_CUSTOMCOLOR", mul_tbl.tr[value])
+        if t2[i+1] then
+          SetMediaItemTakeInfo_Value(t2[i+1], "I_CUSTOMCOLOR", mul_tbl.tr[value])
         else
-          SetMediaItemInfo_Value(sel_tbl.it[i+1], "I_CUSTOMCOLOR", mul_tbl.tr[value])
+          SetMediaItemInfo_Value(t1[i+1], "I_CUSTOMCOLOR", mul_tbl.tr[value])
         end
       end
     end
@@ -1719,8 +1717,7 @@ local function Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, 
         reaper.SetProjectMarker4( 0, rv_markers.markrgnindexnumber[n], rv_markers.isrgn[n], rv_markers.pos[n], rv_markers.rgnend[n], rv_markers.name[n], tbl_tr, 0)
         rv_markers.color[n] = tbl_tr
       end
-      sel_color[1] = pal_tab[pop_key]
-      last_touched_color = pal_tab[pop_key] 
+      sel_color[1], last_touched_color = pal_tab[pop_key], pal_tab[pop_key] 
     end
     local num_mark = #sel_markers.retval
     for i=i+1, num_mark do
@@ -1786,6 +1783,9 @@ local function Color_new_tracks_automatically()
         state = state+1
         if stored_val and state2 == state then -- if already a new track was created and the color of it is known
           SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[stored_val%remainder+1])
+          if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
+            Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.it[stored_val%remainder+1])
+          end
           stored_val, state2 = stored_val+1, state +1
         else
           tr_ip = GetMediaTrackInfo_Value(track, 'IP_TRACKNUMBER')
@@ -1795,16 +1795,26 @@ local function Color_new_tracks_automatically()
               for o=1, #auto_track.auto_palette do
                 if auto_track.auto_palette[o]==col_tbl.tr[prev_tr_ip] then
                   SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[o%remainder+1])
+                  if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
+                    Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.it[o%remainder+1])
+                  end
                   found, stored_val, state2 = true, o+1, state +1
                   break
                 end
               end
               if not found then 
                 SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[1])
+                if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
+                  Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.tr[1])
+                end
+                
                 stored_val, state2 = 1, state +1
               end
             else
               SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[1])
+              if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
+                Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.tr[1])
+              end
               stored_val, state2  = 1, state +1
             end
           else
@@ -1833,14 +1843,14 @@ local function button_color(h, s, v, a, name, size_w, size_h, small, round)
   ImGui.PopStyleColor(ctx, n)
 
   local draw_list = ImGui.GetWindowDrawList(ctx)
-  local text_min_x, text_min_y = reaper.ImGui_GetItemRectMin(ctx)
-  local text_max_x, text_max_y = reaper.ImGui_GetItemRectMax(ctx)
+  local text_min_x, text_min_y = ImGui.GetItemRectMin(ctx)
+  local text_max_x, text_max_y = ImGui.GetItemRectMax(ctx)
   if not ImGui.IsItemHovered(ctx) then
-    reaper.ImGui_DrawList_AddRect(draw_list, text_min_x, text_min_y, text_max_x, text_max_y, HSV(h, s, v, a), round)
+    ImGui.DrawList_AddRect(draw_list, text_min_x, text_min_y, text_max_x, text_max_y, HSV(h, s, v, a), round)
   elseif ImGui.IsItemHovered(ctx) then
-    reaper.ImGui_DrawList_AddRect(draw_list, text_min_x, text_min_y, text_max_x, text_max_y, HSV(h, s, v, a), round)
-  elseif reaper.ImGui_IsItemActive(ctx) then
-    reaper.ImGui_DrawList_AddRect(draw_list, text_min_x, text_min_y, text_max_x, text_max_y, HSV(h, s, v, a), round)      
+    ImGui.DrawList_AddRect(draw_list, text_min_x, text_min_y, text_max_x, text_max_y, HSV(h, s, v, a), round)
+  elseif ImGui.IsItemActive(ctx) then
+    ImGui.DrawList_AddRect(draw_list, text_min_x, text_min_y, text_max_x, text_max_y, HSV(h, s, v, a), round)      
   end
   return state
 end
@@ -2615,7 +2625,7 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
     end
   
     -- SHINYCOLORS MODE POPUP --
-    local center = {reaper.ImGui_Viewport_GetCenter(ImGui.GetWindowViewport(ctx))}
+    local center = {ImGui.Viewport_GetCenter(ImGui.GetWindowViewport(ctx))}
     ImGui.SetNextWindowPos(ctx, center[1], center[2], ImGui.Cond_Appearing, 0.5, 0.5)
     if ImGui.BeginPopupModal(ctx, 'ShinyColors Mode', nil, ImGui.WindowFlags_AlwaysAutoResize) then
       ImGui.Text(ctx, '\nTo use the full potential of ShinyColors Mode,\nmake sure Custom colors settings are set correctly under:\n\n"REAPER/ Preferences/ Appearance/",\n\nor that the currently used theme has a value of 50 for "tinttcp"\ninside its rtconfig.txt file!')
@@ -2808,7 +2818,7 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
   end
   if items_mode == 0 then
     if ImGui.Selectable(ctx, button_text2, p_selected2, selectable_flags, 0, 0) then
-      color_childs_to_parentcolor(sel_tracks, tr_cnt) 
+      color_childs_to_parentcolor(sel_tracks, tr_cnt, stay, first_in) 
     end
   end
   if ImGui.Selectable(ctx, button_text3..button_text8, p_selected3, selectable_flags, 0, 0) then
@@ -2851,8 +2861,7 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
   if which_item&16 ~= 0 then
     if ImGui.Selectable(ctx, button_text6, p_selected6, selectable_flags, 0, 0) then
       item_track_color_to_custom_palette(pop_key, 24)
-      it_cnt_sw = nil
-      test_track_sw = nil
+      it_cnt_sw, test_track_sw = nil
     end
     if which_item&32 ~= 0 then
       local text_pos4 = text_pos(cntrl_key.."+"..alt_key, button_text6, width)
@@ -3402,7 +3411,7 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
   
   -- PALETTE MENU --
   ImGui.PushFont(ctx, buttons_font2)
-  local fontsize = reaper.ImGui_GetFontSize(ctx)
+  local fontsize = ImGui.GetFontSize(ctx)
   if button_action(button_colors.button_color1, 'Palette Menu', menu_w, menu_h, true, size*0.12, size*0.15) then 
     openSettingWnd = true
     check_mark = check_mark|2
@@ -3454,7 +3463,7 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
     end
     ImGui.SameLine(ctx, 0, size*0.6)
     local shortcut_pos = (menu_h-ImGui.GetFontSize(ctx))*0.4/2 
-    reaper.ImGui_SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)+shortcut_pos)
+    ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)+shortcut_pos)
     if set_cntrl.modifier_info then
       ImGui.Text(ctx, shortcut_text)
     end
@@ -3472,6 +3481,7 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
   
   ImGui.SameLine(ctx, -1, av_x-size*3.5+sides)
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff) col2=col2+1
+
 
   -- SELECTION INDICATOR --
   if button_action(button_colors.button_color3, tr_txt, size*3.5 , menu_h, true, size*0.12, size*0.15) then
@@ -3506,6 +3516,7 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
     end
   end
   
+  
   if ImGui.IsItemHovered(ctx) then
     if mods_retval == 4096 then
       shortcut_text = "Modifiers: Activate static context mode"
@@ -3526,8 +3537,8 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
     
   -- STATIC DRAWING --
   if  static_mode ~= 0 then
-    local text_min_x, text_min_y = reaper.ImGui_GetItemRectMin(ctx)
-    local text_max_x, text_max_y = reaper.ImGui_GetItemRectMax(ctx)
+    local text_min_x, text_min_y = ImGui.GetItemRectMin(ctx)
+    local text_max_x, text_max_y = ImGui.GetItemRectMax(ctx)
     ImGui.DrawList_AddLine(draw_list, text_min_x+4, text_min_y+8, text_min_x+4,text_min_y+4, HSV(0.555, 0.7, 1, 1), 1)
     ImGui.DrawList_AddLine(draw_list, text_min_x+4, text_min_y+4, text_min_x+8,text_min_y+4, HSV(0.555, 0.7, 1, 1), 1)
     ImGui.DrawList_AddLine(draw_list, text_min_x+4, text_max_y-5, text_min_x+8,text_max_y-5, HSV(0.555, 0.7, 1, 1), 1)
@@ -3539,10 +3550,13 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
   end
 
   -- GREEN DOT --
-  if selected_mode == 1 then   
+  if selected_mode == 1 then
+    
     ImGui.PushStyleColor(ctx, ImGui.Col_Border, HSV(0.555, 0.1, 0.39, 1)); col2=col2+1
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize,0); var2=var2+1
     ImGui.PushStyleVar (ctx, ImGui.StyleVar_FramePadding, 0, 0); var2=var2+1
+
+
     local font_size = ImGui.GetFontSize(ctx)
     ImGui.SameLine(ctx, -1, av_x-size*3.5+sides-font_size-size*0.4)
     ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)+(menu_h-font_size-size*0.1)*0.5)
@@ -3633,10 +3647,11 @@ local Color_new_tracks = Color_new_tracks_automatically() -- make anonymous func
 -- THE COLORPALETTE GUI--
 
 local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spacing, sides) 
-  local ImGui_scale = reaper.ImGui_GetWindowDpiScale(ctx)
+  local ImGui_scale = ImGui.GetWindowDpiScale(ctx)
   if ImGui_scale ~= ImGui_scale2 then
     sys_scale, ImGui_scale2 = ImGui_scale, ImGui_scale
   end
+  
   local p_x, p_y = ImGui.GetWindowPos(ctx)
   local menu_w = (size)*5+spacing*3
   local menu_w2 = (size2)*5+spacing*3
@@ -3655,7 +3670,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     - select(2, ImGui.GetStyleVar(ctx, ImGui.StyleVar_WindowPadding))
   ImGui.PopFont(ctx)
   ImGui.PushFont(ctx, buttons_font2)
-  local cur_fontsize = reaper.ImGui_GetFontSize(ctx)
+  local cur_fontsize = ImGui.GetFontSize(ctx)
   local h_calc = title_h
   local mods_retval = ImGui.GetKeyMods(ctx)
   
@@ -3854,6 +3869,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       end
       if (static_mode == 0 or static_mode == 2) then
         items_mode = 1
+        
       end
     elseif sel_tracks > 0 then
       if static_mode == 0 then
@@ -3906,6 +3922,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       reselect_take(init_state, sel_items, item_track) 
     end
   end
+
 
   -- -- ==== MIDDLE PART ==== -- --
   
@@ -4042,6 +4059,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     
     if button_color(hc, sc, vc, 1, 'Edit custom color', size*5+spacing*5+size*.1, size, false, 2) then
       ImGui.OpenPopup(ctx, 'Choose color#2', ImGui.PopupFlags_MouseButtonLeft)
+      backup_color2 = rgba
     end
     
     local open_popup2 = ImGui.BeginPopup(ctx, 'Choose color#2')
@@ -4282,7 +4300,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     ImGui.SameLine(ctx, 0.0, bttn_gap)
     if button_action(button_colors.button_color2, button_text2, bttn_width, bttn_height, true, size*0.17, size*0.17) then 
       color_childs_to_parentcolor(sel_tracks, tr_cnt) 
-    end
+    end 
     
     ImGui.SameLine(ctx, 0.0, bttn_gap)
     if button_action(button_colors.button_color2, button_text3, bttn_width, bttn_height, true, size*0.17, size*0.17) then
@@ -4313,7 +4331,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   if w > (av_x+sides*2+.5)//1 then 
     if h > h_calc+size*0.1 then
     else
-      reaper.ImGui_Dummy(ctx, size*0.4, h_calc-max_y+size*0.12)
+      ImGui.Dummy(ctx, size*0.4, h_calc-max_y+size*0.12)
     end
   end
   
@@ -4473,9 +4491,9 @@ local function push_style_color()
   ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, 0x9eff59ff) n=n+1
   
   if set_cntrl.background_color_mode then
-    local theme_color = reaper.ImGui_ColorConvertNative(reaper.GetThemeColor('col_main_bg2', -1))
+    local theme_color = ImGui.ColorConvertNative(reaper.GetThemeColor('col_main_bg2', -1))
     local theme_color = (theme_color << 8) | 0xFF 
-    ImGui.PushStyleColor(ctx, reaper.ImGui_Col_WindowBg(), theme_color) n=n+1
+    ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, theme_color) n=n+1
   end
   return n
 end
@@ -4499,10 +4517,10 @@ end
 
 local function loop()
   if want_font_size2 ~= font_size then
-    if buttons_font then reaper.ImGui_Detach(ctx, buttons_font) end
-    if buttons_font2 then reaper.ImGui_Detach(ctx, buttons_font2) end
-    if buttons_font3 then reaper.ImGui_Detach(ctx, buttons_font3) end
-    if buttons_font4 then reaper.ImGui_Detach(ctx, buttons_font4) end
+    if buttons_font then ImGui.Detach(ctx, buttons_font) end
+    if buttons_font2 then ImGui.Detach(ctx, buttons_font2) end
+    if buttons_font3 then ImGui.Detach(ctx, buttons_font3) end
+    if buttons_font4 then ImGui.Detach(ctx, buttons_font4) end
     buttons_font = ImGui.CreateFont('sans-serif', want_font_size)
     buttons_font2 = ImGui.CreateFont('sans-serif', want_font_size2)
     buttons_font3 = ImGui.CreateFont('sans-serif', want_font_size3)
