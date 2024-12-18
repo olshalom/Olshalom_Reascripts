@@ -1,8 +1,12 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.8.8.3
---  @date 17.12.24
+--  @version 0.8.8.4
+--  @date 18.12.24
 --  @changelog
+--    0.8.8.4
+--    Bug fixes:
+--        > fix loading fonts for windows
+--
 --    0.8.8.3
 --    Improvements:
 --        > support duplicate tracks with item content in shinycolors mode
@@ -96,7 +100,7 @@
 local script_name = 'Chroma - Coloring Tool'
 local OS = reaper.GetOS()
 local sys_os, sys_offset, sys_scale, modifier_text
-local font_divider1, font_divider2, font_divider3, font_size
+local font_divider1, font_divider2, font_divider3, font_size, saved_font_size
 local frame_paddingY, cntrl_key
 if OS:find("OSX") or OS:find("macOS") then
   sys_os = 1
@@ -4516,7 +4520,7 @@ end
 -- LOOP -- MAIN FUNCTION --
 
 local function loop()
-  if want_font_size2 ~= font_size then
+  if want_font_size2 ~= saved_font_size then
     if buttons_font then ImGui.Detach(ctx, buttons_font) end
     if buttons_font2 then ImGui.Detach(ctx, buttons_font2) end
     if buttons_font3 then ImGui.Detach(ctx, buttons_font3) end
@@ -4525,7 +4529,7 @@ local function loop()
     buttons_font2 = ImGui.CreateFont('sans-serif', want_font_size2)
     buttons_font3 = ImGui.CreateFont('sans-serif', want_font_size3)
     buttons_font4 = ImGui.CreateFont('sans-serif', want_font_size4)
-    font_size = want_font_size2
+    saved_font_size = want_font_size2
     ImGui.Attach(ctx, buttons_font)
     ImGui.Attach(ctx, buttons_font2)
     ImGui.Attach(ctx, buttons_font3)
