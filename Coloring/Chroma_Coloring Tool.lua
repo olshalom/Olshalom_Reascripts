@@ -1,8 +1,15 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.8.8.4
---  @date 18.12.24
+--  @version 0.8.8.5
+--  @date 23.12.24
 --  @changelog
+--    0.8.8.5
+--    Improvements:
+--        > more precise height calculation for resizing window when show/hide sections
+--        > improve color children to parent in rightclick menu
+--    Bug fixes:
+--        > fix multiple elements coloring function 
+--        > some more little fixes...
 --    0.8.8.4
 --    Bug fixes:
 --        > fix loading fonts for windows
@@ -95,13 +102,12 @@
 --      Bug fixes:
 --        > Updating trackcolor table on change of custom palette for automatic track coloring
 
-
-  
 local script_name = 'Chroma - Coloring Tool'
 local OS = reaper.GetOS()
 local sys_os, sys_offset, sys_scale, modifier_text
 local font_divider1, font_divider2, font_divider3, font_size, saved_font_size
 local frame_paddingY, cntrl_key
+
 if OS:find("OSX") or OS:find("macOS") then
   sys_os = 1
   sys_offset = 0
@@ -123,6 +129,7 @@ else
                     "CTRL: Color items and its tracks to same color", "CTRL: Color markers/regions inside timeselection to same color",
                     "Modifier not used", "SHIFT+ALT: Edit color"}
 end
+
 -- GFX FONT  --
 gfx.r, gfx.g, gfx.b = 1, 1, 1
 gfx.set(100,1,1,1)
@@ -298,7 +305,6 @@ end
 local sel_color = {} 
 local move_tbl = {it = {}, trk_ip = {}}
 local col_tbl = nil
-local tr_clr = {} 
 local pal_tbl = nil
 local cust_tbl = nil
 local sel_tbl = {it = {}, tke = {}, tr = {}, it_tr = {}}
@@ -374,10 +380,10 @@ local items_mode, item_sw, takecolor2, projfn2, h, av_y, sel_mk
 local button_text1, button_text2, button_text3, button_text4, button_text5       
 local remainder, init_state_saved, max_x, max_y, go, ImGui_scale2, mouse_over
 local old_project, track_number_stop, tr_cnt_sw, padding_x, padding_y
-local set_pos, takelane_mode2, visible2, nextitemforeground, timer2
+local set_pos, takelane_mode2, visible2, nextitemforeground, timer2, sel_tracks2 
 local static_mode, resize, can_re, counter = 0, 0, "", 0
 local test_take, test_take2, test_track_it, test_item_sw, test_track_sw, sel_items, sel_items_sw, it_cnt_sw, track_sw2
-local sel_tracks2 = 0      
+local check_mark = 0
 local tr_txt = '##No_selection' 
 local shortcut_text = ''
 local automode_id         = loadsetting2("automode_id", 1)
@@ -396,10 +402,9 @@ local show_mainpalette    = loadsetting("show_mainpalette", true)
 local show_seperators     = loadsetting("show_seperators", true)  
 local auto_trk            = loadsetting("auto_trk", true)
 local w                   = loadsetting2("w", 777)
-local check_mark = 0
 local sides = w/44.671349
 local av_x = w-(sides*2)
-local spacing = w*0.0026 if spacing < 1 then spacing = 1 end
+local spacing = max((w*0.002), 1)
 local size = (av_x-spacing*23)/24
 local size2 = (w-sides*2-spacing*23)/24
 --local _
@@ -519,10 +524,6 @@ end
 local ctx = ImGui.CreateContext(script_name) 
 local sans_serif = ImGui.CreateFont('sans-serif', font_size)
 local buttons_font, buttons_font2, buttons_font3, buttons_font4 
-local want_font_size = max((av_x/font_divider1)//1, 2)
-local want_font_size2 = max((av_x/font_divider2)//1, 2)
-local want_font_size3 = (av_x/font_divider3)//1
-local want_font_size4 = ((av_x)/font_divider2)//1
 ImGui.Attach(ctx, sans_serif)
 local openSettingWnd = false
 
@@ -1565,7 +1566,7 @@ local function coloring(sel_items, sel_tracks, tbl_tr, tbl_it, mods_retval, colo
 end
 
 
--- COLOR CHILDS TO PARENTCOLOR -- Thanks to ChMaha  and BirdBird for this functions
+-- COLOR CHILDS TO PARENTCOLOR -- Thanks to ChMaha and BirdBird for this functions
 function color_childs_to_parentcolor(sel_tracks, tr_cnt, stay, first_in) 
   local function get_child_tracks(folder_track, tr_cnt)
     local all_tracks = {}
@@ -1591,18 +1592,24 @@ function color_childs_to_parentcolor(sel_tracks, tr_cnt, stay, first_in)
   PreventUIRefresh(1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
   for i=0, sel_tracks -1 do
     local track = GetSelectedTrack(0,i)
-    local trackcolor
-    if stay then 
-      trackcolor = ImGui.ColorConvertNative(first_in>> 8)
-      SetTrackColor(track, trackcolor)
-    else
-      trackcolor = GetMediaTrackInfo_Value(track, "I_CUSTOMCOLOR")
-    end
-    local child_tracks = get_child_tracks(track, tr_cnt)
-    for i = 1, #child_tracks do
-      SetTrackColor(child_tracks[i], trackcolor)
-      if selected_mode == 1 then
-        Color_items_to_track_color_in_shiny_mode(child_tracks[i], background_color_native(trackcolor))
+    local check_for_parent = reaper.GetMediaTrackInfo_Value(track, 'I_FOLDERDEPTH')
+    if check_for_parent == 1 then
+      local trackcolor
+      if stay then 
+        trackcolor = ImGui.ColorConvertNative(first_in>> 8)
+        SetTrackColor(track, trackcolor)
+        if selected_mode == 1 then
+          Color_items_to_track_color_in_shiny_mode(track, background_color_native(trackcolor))
+        end
+      else
+        trackcolor = GetMediaTrackInfo_Value(track, "I_CUSTOMCOLOR")
+      end
+      local child_tracks = get_child_tracks(track, tr_cnt)
+      for i = 1, #child_tracks do
+        SetTrackColor(child_tracks[i], trackcolor)
+        if selected_mode == 1 then
+          Color_items_to_track_color_in_shiny_mode(child_tracks[i], background_color_native(trackcolor))
+        end
       end
     end
   end
@@ -1632,9 +1639,10 @@ function Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, first_
     shuffle(numbers)
     return numbers
   end
-  local pal_div, first_color, color_state, i, found_value, mul_tbl, palette_name = #pal_tab, sel_color[1], 0
+  local pal_div, color_state, i, found_value, mul_tbl, palette_name, first_color = #pal_tab, 0
   if tab_num then mul_tbl, palette_name = cust_tbl, "custom" else mul_tbl, palette_name = pal_tbl, "main" end
   local numbers = shuffled_numbers (pal_div)
+  if first_stay then i, first_color = 1, pal_tab[pop_key] else i, first_color = 0, sel_color[1] end
   for p=1, pal_div do
     if first_color==pal_tab[p] then
       color_state = 1
@@ -1642,7 +1650,7 @@ function Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, first_
     break
     end
   end
-  if first_stay then i = 1 else i = 0 end
+  
   
   local function track_path()
     PreventUIRefresh(1) 
@@ -1660,7 +1668,7 @@ function Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, first_
       local track = t[i+1]
       if random_in then value = numbers[i%pal_div+1]
       elseif color_state ==1 then if sel_tracks < 2 then value = (i+found_value)%pal_div+1 else value = (i+found_value-1)%pal_div+1 end
-      else value = i%pal_div+1 end
+      else value = i%pal_div+1  end
       SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", mul_tbl.tr[value])
       if selected_mode == 1 then
         Color_items_to_track_color_in_shiny_mode(track, mul_tbl.it[value])
@@ -1677,11 +1685,11 @@ function Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, first_
     if first_stay then
       if selected_mode == 1 then 
         SetMediaItemInfo_Value(t1[1],"I_CUSTOMCOLOR", tbl_it)
-        if t2[i+1] then 
+        if t2[1] then 
           SetMediaItemTakeInfo_Value(t2[1],"I_CUSTOMCOLOR", tbl_tr)
         end
       else
-        if t2[i+1] then 
+        if t2[1] then 
           SetMediaItemTakeInfo_Value(t2[1],"I_CUSTOMCOLOR", tbl_tr) 
         else
           SetMediaItemInfo_Value(t1[1],"I_CUSTOMCOLOR", tbl_tr)
@@ -1956,6 +1964,7 @@ function item_track_color_to_custom_palette(m, div)
     end
   end
   cust_tbl = nil
+  check_mark = check_mark&1
   pre_cntrl.differs, pre_cntrl.differs2, pre_cntrl.stop = pre_cntrl.current_item, 1, nil
 end
 
@@ -2082,6 +2091,8 @@ local function PaletteMenu(p_y, p_x, w, h)
   else
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 3) var=var+1
   end
+  ImGui.PopFont(ctx)
+  ImGui.PushFont(ctx, sans_serif)
   
   ImGui.SetNextWindowSize(ctx, 236, 690, ImGui.Cond_Appearing) 
   ImGui.SetNextWindowSizeConstraints(ctx, 236, 200, 250, 690, nil)
@@ -2390,6 +2401,8 @@ local function PaletteMenu(p_y, p_x, w, h)
     set_pos = {ImGui.GetWindowPos(ctx)}
   end
   ImGui.PopStyleVar(ctx, var)
+  ImGui.PopFont(ctx)
+  ImGui.PushFont(ctx, buttons_font2)
 end
 
 
@@ -2412,11 +2425,11 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
         show_custompalette, resize = false, 2
       else
         show_custompalette, resize = true, 5
-        if show_seperators then set_cntrl.resize_height = size*1.2+fontsize
+        if show_seperators then set_cntrl.resize_height = (size+.5)//1+(size*0.2)//1+fontsize
         elseif show_mainpalette and (not show_lasttouched or not show_edit) then
-          set_cntrl.resize_height = size+fontsize
+          set_cntrl.resize_height = (size+.5)//1+fontsize
         elseif (show_lasttouched or show_edit) then
-          set_cntrl.resize_height = size*1.6
+          set_cntrl.resize_height = (size+.5)//1+(size*0.3)//1+(size*0.2)//1+(size*0.1)//1
         else set_cntrl.resize_height = size*1.2 end
       end
     end
@@ -2424,17 +2437,21 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       if show_edit then show_edit, resize = false, 2
       else show_edit = true
         if show_seperators then
-          if show_lasttouched then resize = 0 set_cntrl.resize_height = 0
+          if show_lasttouched then set_cntrl.resize_height, resize = 0, 0
+          elseif show_custompalette and not show_mainpalette then
+            set_cntrl.resize_height, resize = (size+.5)//1+(size2*0.3)//1, 9
           elseif show_custompalette then
-            set_cntrl.resize_height, resize  = size*1, 9
+            set_cntrl.resize_height, resize = (size+.5)//1, 9
           elseif not show_mainpalette and not show_custompalette then
-            set_cntrl.resize_height = size*1.2 resize = 9
+            set_cntrl.resize_height, resize = (size+.5)//1+(size*0.3)//1, 9
           else set_cntrl.resize_height, resize = size*1.1, 9 end
         else
           if show_lasttouched then resize = 0 set_cntrl.resize_height = 0
           elseif not show_mainpalette and not show_custompalette then
-            set_cntrl.resize_height = size*1.3 resize = 9 
-          else set_cntrl.resize_height = size*1.7 resize = 521 end
+            set_cntrl.resize_height, resize = (size+.5)//1+(size2*0.3)//1, 9 
+          else
+            if not show_custompalette then resize = 9 else resize = 521 end
+            set_cntrl.resize_height = (size+.5)//1+(size*0.2)//1+(size*0.3)//1+(size*0.2)//1 end
         end
       end
     end
@@ -2443,17 +2460,21 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       else
         show_lasttouched = true
         if show_seperators then
-          if show_edit then set_cntrl.resize_height = 0 resize = 0 
+          if show_edit then set_cntrl.resize_height, resize = 0, 0 
+          elseif show_custompalette and not show_mainpalette then
+            set_cntrl.resize_height, resize  = (size+.5)//1+(size*0.3)//1, 17
           elseif show_custompalette then
-            set_cntrl.resize_height, resize  = size*1, 17
+            set_cntrl.resize_height, resize  = (size+.5)//1, 17
           elseif not show_mainpalette and not show_custompalette then
-            set_cntrl.resize_height = size*1.2 resize = 17
-          else set_cntrl.resize_height, resize  = size*1.1, 17 end
+            set_cntrl.resize_height, resize = (size+.5)//1+(size*0.3)//1, 17
+          else set_cntrl.resize_height, resize  = size*1.1, 17  end
         else
           if show_edit then set_cntrl.resize_height = 0 resize = 0 
           elseif not show_mainpalette and not show_custompalette then
-            set_cntrl.resize_height = size*1.3 resize = 17
-          else set_cntrl.resize_height, resize= size*1.7, 529 end
+            set_cntrl.resize_height, resize = (size+.5)//1+(size*0.3)//1, 17
+          else
+            if not show_custompalette then resize = 17 else resize = 529 end
+            set_cntrl.resize_height = (size+.5)//1+(size*0.3)//1+(size*0.3)//1+(size*0.1)//1 end
         end
       end
     end
@@ -2463,17 +2484,19 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       else
         show_seperators, resize = true, 129
         if show_custompalette and show_mainpalette and (show_lasttouched or show_edit) then
-          set_cntrl.resize_height, resize = fontsize*2-size*0.02-size*0.6, 897
+          set_cntrl.resize_height, resize = fontsize*2-math.ceil(size2*0.02)-math.ceil(size*0.05)-(size*0.3)//1-(size*0.3)//1, 897
         elseif show_custompalette and show_mainpalette then
-          set_cntrl.resize_height, resize = fontsize+size*0.3, 2433
+          set_cntrl.resize_height, resize = fontsize+(size*0.2)//1+(size*0.1)//1, 2433 
         elseif show_custompalette and not show_mainpalette and (show_edit or show_lasttouched) then
-          set_cntrl.resize_height, resize = fontsize-size*0.22, 641
+          set_cntrl.resize_height, resize = fontsize-math.ceil(size*0.02), 641
         elseif not show_custompalette and show_mainpalette and (show_edit or show_lasttouched) then
-          set_cntrl.resize_height, resize = fontsize-size*0.22, 1281
+          set_cntrl.resize_height, resize = fontsize-math.ceil(size*0.02)-(size*0.2)//1, 1281
         elseif not show_custompalette and show_mainpalette and not show_edit and not show_lasttouched then
-          set_cntrl.resize_height, resize = fontsize+size*0.1, 257
+          set_cntrl.resize_height, resize = fontsize+(size*0.1)//1, 257
         elseif not show_custompalette and not show_mainpalette and (show_edit or show_lasttouched) then
-          set_cntrl.resize_height, resize = size*0.3, 0
+          set_cntrl.resize_height, resize = size*0, 0
+        elseif show_custompalette then
+          set_cntrl.resize_height, resize = fontsize+(size*0.3+.5)//1, 129
         else
           set_cntrl.resize_height, resize = 0, 129
         end
@@ -2485,15 +2508,15 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       else
         show_mainpalette = true
         if show_seperators and not show_lasttouched and not show_edit then
-          set_cntrl.resize_height, resize = size*5+spacing*5+fontsize+size*0.1, 289
+          set_cntrl.resize_height, resize = ((size+.5)//1)*5+spacing//1*5+fontsize+(size*0.1)//1, 289
         elseif show_seperators then
-          set_cntrl.resize_height, resize = size*5+spacing*5+size*0.05+fontsize, 289
+          set_cntrl.resize_height, resize = (size+.5)//1*5+spacing//1*5+(size*0.1)//1+fontsize-math.ceil(size*0.05), 289
         elseif show_lasttouched or show_edit then
-          set_cntrl.resize_height, resize = size*5+spacing*5+size*0.3, 289
+          set_cntrl.resize_height, resize = (size+.5)//1*5+spacing//1*5+(size*0.1)//1, 801 
         elseif show_custompalette then
-          set_cntrl.resize_height, resize = size*5+spacing*5+fontsize, 289
+          set_cntrl.resize_height, resize = (size+.5)//1*5+spacing//1*5+fontsize, 289
         else
-          set_cntrl.resize_height, resize = size*5+spacing*5, 289
+          set_cntrl.resize_height, resize = (size+.5)//1*5+spacing//1*5, 289
         end
       end
     end
@@ -2502,7 +2525,7 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       if show_action_buttons then 
         show_action_buttons, resize = false, 2 
       else 
-        show_action_buttons, resize, set_cntrl.resize_height = true, 65, bttn_height+size*0.6
+        show_action_buttons, resize, set_cntrl.resize_height = true, 65, bttn_height//1+(size*0.6)//1
       end
     end
     ImGui.PopStyleColor(ctx,1)
@@ -2826,8 +2849,8 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
     end
   end
   if ImGui.Selectable(ctx, button_text3..button_text8, p_selected3, selectable_flags, 0, 0) then
-    sel_color[1] = custom_palette[pop_key]
     Color_selected_elements_with_gradient(sel_tracks, sel_items, first_in, sel_color[#sel_color], stay)
+    last_touched_color = first_in
   end
   if which_item&32 ~= 0 then
     local text_pos1 = text_pos(cntrl_key.."+SHIFT", button_text3..button_text8, width)
@@ -3365,7 +3388,7 @@ function IsManagerWindowClicked()
   local state_count, focused_hWnd, focused_hWnd_sw, parent_hWnd, is_focused_sw, list_item_sw, parent_hWnd_sw, list_hWnd
   local inputbox_hWnd, region_manager_state, state_count_sw, list_item, list_item_sw, had_mouse_input, time
   local mouseclick, time = false, 0
-  local title = reaper.JS_Localize("Region/Marker Manager", "common")
+  local title = reaper.JS_Localize("Region/Marker Manager", "DLG_508")
   
   return function()
     focused_hWnd = reaper.JS_Window_GetFocus()
@@ -3656,6 +3679,9 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     sys_scale, ImGui_scale2 = ImGui_scale, ImGui_scale
   end
   
+  ImGui.PopFont(ctx)
+  ImGui.PushFont(ctx, buttons_font2)
+  local cur_fontsize = ImGui.GetFontSize(ctx)
   local p_x, p_y = ImGui.GetWindowPos(ctx)
   local menu_w = (size)*5+spacing*3
   local menu_w2 = (size2)*5+spacing*3
@@ -3669,12 +3695,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   local bttn_gap2 = max((w-size*1.2)/(divider*5-1), 1)
   local bttn_width2 = bttn_gap2*(divider-1)
   local bttn_height2 = bttn_width2/5*2
-  local title_h = select(2, ImGui.GetCursorStartPos(ctx))
-    + ImGui.GetScrollY(ctx)
-    - select(2, ImGui.GetStyleVar(ctx, ImGui.StyleVar_WindowPadding))
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, buttons_font2)
-  local cur_fontsize = ImGui.GetFontSize(ctx)
+  local title_h = select(2, ImGui.GetCursorStartPos(ctx)) + ImGui.GetScrollY(ctx) - select(2, ImGui.GetStyleVar(ctx, ImGui.StyleVar_WindowPadding))
   local h_calc = title_h
   local mods_retval = ImGui.GetKeyMods(ctx)
   
@@ -3733,7 +3754,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   -- SAVE ALL TRACKS AND THEIR COLORS TO A TABLE --
   if not col_tbl 
     or tr_cnt ~= tr_cnt_sw
-      or Undo_CanUndo2(0)=='Change track order' then
+      or Undo_CanUndo2(0)== 'Change track order' then
     generate_trackcolor_table(tr_cnt)
     tr_cnt_sw = tr_cnt 
   end
@@ -3747,23 +3768,23 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     end
     check_mark = check_mark&~2
   end
+  
   if not openSettingWnd then
     nextitemforeground = nil
   end
   
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, size2*0.17, size2*frame_paddingY)
-  local var = 0 
+  local var, col = 0, 0
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, size*0); var=var+1 
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, 5); var=var+1 -- for settings menu sliders
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_GrabRounding, 2); var=var+1
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_PopupRounding, 2); var=var+1
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize,2) var=var+1
-  local col = 0
   ImGui.PushStyleColor(ctx, ImGui.Col_Border,0x303030ff) col= col+1
   ImGui.PushStyleColor(ctx, ImGui.Col_BorderShadow, 0x10101050) col= col+1
   
   ImGui.Dummy(ctx, av_x, size*0.6) -- mimic window pad at the top
-  h_calc = h_calc+size2*0.6
+  h_calc = (h_calc+size2*0.6)//1
   
   -- PALETTE MENU, SETTINGS POPUP AND INDICATOR --
   if set_cntrl.topbar_ghost_mode then
@@ -3792,10 +3813,8 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   else
     Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_tracks, mods_retval, av_x, bttn_height, spacing)
     ImGui.Dummy(ctx, av_x, size*0.5)
-    h_calc = h_calc+menu_h+size2*0.5
+    h_calc = (h_calc+menu_h+size2*0.5)//1
   end
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif)
   
   if ImGui.BeginPopup(ctx, '##Settings7') then
     ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, m, cust_tbl, 6)
@@ -3873,7 +3892,6 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       end
       if (static_mode == 0 or static_mode == 2) then
         items_mode = 1
-        
       end
     elseif sel_tracks > 0 then
       if static_mode == 0 then
@@ -3927,7 +3945,6 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     end
   end
 
-
   -- -- ==== MIDDLE PART ==== -- --
   
   ImGui.PopFont(ctx)
@@ -3936,7 +3953,8 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
 
   -- CUSTOM COLOR PALETTE --
   if show_custompalette and resize&4 ~= 4 then
-    h_calc = h_calc+size2
+    h_calc = h_calc+(size2+.5)//1
+    
     for m=1, #custom_palette do
       ImGui.PushID(ctx, m)
       if ((m - 1) % 24) ~= 0 then
@@ -3954,7 +3972,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       if highlight2 == false then
         palette_button_flags2 = palette_button_flags2 | ImGui.ColorEditFlags_NoBorder
       end
-      if ImGui.ColorButton(ctx, '##palette2', custom_palette[m], palette_button_flags2, size, size) then
+      if ImGui.ColorButton(ctx, '##palette2', custom_palette[m], palette_button_flags2, size, (size+.5)//1) then
         if mods_retval == 16384 then
           backup_color, rgba2 = custom_palette[m], custom_palette[m]
           custom_palette[m] = HSL((m-1) / 24+0.69, 0.1, 0.2, 1)
@@ -3965,7 +3983,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
         elseif custom_palette[m] ~= HSL((m-1) / 24+0.69, 0.1, 0.2, 1) or mods_retval == 20480 then
           if mods_retval == 8192 then
             sel_color[1] =custom_palette[m]
-            Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, true, custom_palette, 1, set_cntrl.random_main, cust_tbl.tr[m], cust_tbl.it[m], m)
+            Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, true, custom_palette, 1, set_cntrl.random_custom, cust_tbl.tr[m], cust_tbl.it[m], m)
           else
             coloring(sel_items, sel_tracks, cust_tbl.tr[m], cust_tbl.it[m], mods_retval, custom_palette[m], tr_cnt, m, 24, 'custom_palette') 
             if mods_retval ~= 20480 then
@@ -4010,7 +4028,6 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
         ImGui.EndPopup(ctx)
       end 
       
-       
       if ImGui.BeginDragDropTarget(ctx) then
         local rv,drop_color = ImGui.AcceptDragDropPayloadRGBA(ctx)
         if rv then
@@ -4027,11 +4044,11 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
       ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextBorderSize, size*0.1) 
       ImGui.PushStyleVar (ctx, ImGui.StyleVar_SeparatorTextAlign, 1, 0.5)
-      ImGui.Dummy(ctx, av_x, size*0.2)
+      ImGui.Dummy(ctx, av_x, (size*0.2)//1)
       ImGui.SeparatorText(ctx, '  Custom Palette  ')
       ImGui.PopStyleVar(ctx, 2)
       ImGui.PopStyleColor(ctx,1)
-      h_calc = h_calc+size2*0.2+cur_fontsize
+      h_calc = h_calc+(size2*0.2)//1+cur_fontsize
     end
   end
   
@@ -4044,43 +4061,41 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     ImGui.PopStyleVar(ctx, 1)
     h_calc = h_calc+cur_fontsize
   elseif (not show_seperators and resize&128 ~= 128 and resize&4 ~= 4 and resize&32 ~= 32 and show_custompalette) or resize&512 == 512 then
-    ImGui.Dummy(ctx, av_x, size*0.2)
-    h_calc = h_calc+size2*0.2
+    ImGui.Dummy(ctx, av_x, (size*0.2)//1)
+    h_calc = h_calc+(size2*0.2)//1
   end
 
   -- CUSTOM COLOR WIDGET --
   if show_edit and resize&8 ~= 8 then
     if resize&512 == 512 or show_custompalette and not show_seperators and resize&4 ~= 4 and resize&128 ~= 128 then
-      ImGui.Dummy(ctx, av_x, size*0.3)
-      h_calc = h_calc+size2*0.28
+      ImGui.Dummy(ctx, av_x, (size*0.3)//1)
+      h_calc = h_calc+(size2*0.3)//1
     elseif show_seperators and show_custompalette then
-      ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)-size*0.02)
-      h_calc = h_calc-size2*0.02
+      ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)-math.ceil(size2*0.02))
+      h_calc = h_calc-math.ceil(size2*0.02)
     end
+
     -- BORDERCOLOR FOR "EDIT CUSTOM COLOR" AND COLORPICKER --
     local rc, gc, bc = ImGui.ColorConvertU32ToDouble4(rgba)
     local hc, sc, vc = ImGui.ColorConvertRGBtoHSV(rc, gc, bc)
     
-    if button_color(hc, sc, vc, 1, 'Edit custom color', size*5+spacing*5+size*.1, size, false, 2) then
+    if button_color(hc, sc, vc, 1, 'Edit custom color', size*5+spacing*5+size*.1, (size+.5)//1, false, 2) then
       ImGui.OpenPopup(ctx, 'Choose color#2', ImGui.PopupFlags_MouseButtonLeft)
       backup_color2 = rgba
     end
-    
     local open_popup2 = ImGui.BeginPopup(ctx, 'Choose color#2')
-    
     if open_popup2 then
       rgba = ColorEditPopup(backup_color2, rgba, rgba)
     end
-    ImGui.SameLine(ctx, -1, size*5+spacing*5+size*.6) -- overlapping items
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
+    
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 5, 5)
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 6)
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 5)
+    ImGui.SameLine(ctx, -1, size*5+spacing*5+size*.6) -- overlapping items
     
     -- APPLY CUSTOM COLOR --
-   
-    if ImGui.ColorButton(ctx, 'Apply custom color##3', rgba, ImGui.ColorEditFlags_NoBorder, size, size) then
+    
+    if ImGui.ColorButton(ctx, 'Apply custom color##3', rgba, ImGui.ColorEditFlags_NoBorder, size, (size+.5)//1) then
       coloring(sel_items, sel_tracks, ImGui.ColorConvertNative(rgba >>8)|0x1000000, Background_color_rgba(rgba), mods_retval, rgba, tr_cnt, -2, 1, 'custom')
       if mods_retval ~= 20480 then
         last_touched_color = rgba
@@ -4090,7 +4105,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       end
     end
     ImGui.PopStyleVar(ctx, 3)
-  
+    
     -- MOUSE MODIFIERS INFO FOR EDIT CUSTOM COLOR WIDGET --
     if ImGui.IsItemHovered(ctx) then
       hovered_button(nil,1,nil,1, nil, mods_retval)
@@ -4109,17 +4124,20 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       ImGui.EndDragDropTarget(ctx)
     end
   end
-  
+
   -- LAST TOUCHED --
   if show_lasttouched and resize&16 ~= 16 then
     if show_edit then
       ImGui.SameLine(ctx, 0.0, spacing)
-    elseif show_seperators and not show_edit and resize&512 ~= 512 then
-      ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)-size*0.02)
-      h_calc = h_calc-size2*0.02
+    elseif show_seperators and show_custompalette and not show_edit and resize&512 ~= 512 and show_mainpalette then
+      ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)-math.ceil(size2*0.02))
+      h_calc = h_calc-math.ceil(size2*0.02)
+    elseif resize&512 ~= 512 and not show_mainpalette and (show_custompalette and not show_seperators) then
+      ImGui.Dummy(ctx, av_x, (size*0.3)//1)
+      h_calc = h_calc+(size2*0.3)//1
     elseif resize&512 == 512 or (show_custompalette and not show_seperators) then
-      ImGui.Dummy(ctx, av_x, size*0.3)
-      h_calc = h_calc+size2*0.28
+      ImGui.Dummy(ctx, av_x, (size*0.3)//1)
+      h_calc = h_calc+(size2*0.3)//1
     end
     
     ImGui.PopFont(ctx)
@@ -4130,15 +4148,13 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
                   |ImGui.ColorEditFlags_NoBorder
                   |ImGui.ColorEditFlags_NoInputs
     
-    button_action(button_colors.button_color4, 'Last touched:', size*4+spacing*4, size, false)
+    button_action(button_colors.button_color4, 'Last touched:', size*4+spacing*4, (size+.5)//1, false)
     ImGui.SameLine(ctx, 0.0, 0.0)
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 5, 5)
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 6)
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 5) 
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
-    
-    if ImGui.ColorButton(ctx, 'Apply last color##6', last_touched_color, custom_color_flags, size, size) then
+
+    if ImGui.ColorButton(ctx, 'Apply last color##6', last_touched_color, custom_color_flags, size, (size+.5)//1) then
       coloring(sel_items, sel_tracks, ImGui.ColorConvertNative(last_touched_color >>8)|0x1000000, Background_color_rgba(last_touched_color), mods_retval, last_touched_color, tr_cnt, -1, 1, 'last touched')
     end
     
@@ -4155,29 +4171,27 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Right) and ImGui.IsWindowHovered(ctx) then
       ImGui.OpenPopup(ctx, '##Settings9')
     end
-    
   end
   
   -- OFFSET AND DUMMIES BEFORE MAINPALETTE --
-  if (show_lasttouched or show_edit) and resize&8 ~= 8 and resize&16 ~= 16  then
-    ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)-6)
-    h_calc = h_calc+size2
-    if resize&512 == 512 or resize&1024 == 1024 or (not show_mainpalette or not show_seperators) and resize&128 ~= 128 then
+  if (show_lasttouched or show_edit) and resize&8 ~= 8 and resize&16 ~= 16 then
+    ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)-5)
+    h_calc = (h_calc)+(size2+.5)//1
+    if resize&512== 512 or resize&1024 == 1024 or (not show_mainpalette or not show_seperators) and resize&128 ~= 128 then
       ImGui.Dummy(ctx, av_x, size*0.3)
-      h_calc = h_calc+size2*0.3
+      h_calc = h_calc+(size2*0.3)//1
     end
   end
 
   -- MAIN PALETTE --
   if show_mainpalette and resize&32 ~= 32 then
-    
     if show_seperators and resize&256 ~= 256 and resize&512 ~= 512 then
       ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
       ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextBorderSize, size*0.1)
       if show_edit or show_lasttouched then
         ImGui.PushStyleVar (ctx, ImGui.StyleVar_SeparatorTextAlign, 1, 0.5)
-        ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx) -size*0.05 )
-        h_calc = h_calc-size2*0.05
+        ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx) -math.ceil(size*0.05))
+        h_calc = h_calc-math.ceil(size2*0.05)
       else
         ImGui.PushStyleVar (ctx, ImGui.StyleVar_SeparatorTextAlign, 0, 0.5)
       end
@@ -4186,16 +4200,19 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       ImGui.SeparatorText(ctx, '  Main Palette  ')
       ImGui.PopStyleVar(ctx,2) 
       ImGui.PopStyleColor(ctx, 1)
-      ImGui.Dummy(ctx, av_x, size*0.1)
-      h_calc = h_calc+cur_fontsize
+      ImGui.Dummy(ctx, av_x, (size*0.1)//1)
+      h_calc = h_calc+cur_fontsize+(size2*0.1)//1
     elseif resize&512 == 512 or (resize&128 ~= 128 and resize&4 ~= 4 and resize&16 ~= 16 and resize&8 ~= 8 and (show_edit or show_lasttouched)) then
       ImGui.Dummy(ctx, av_x, size*0.1)
-      h_calc = h_calc+size2*0.1
+      h_calc = h_calc+(size2*0.1)//1
     end
-    ImGui.PopStyleVar(ctx,1) 
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, size*0.1)    -- general rounding for color widgets
-    h_calc = h_calc+(size2+spacing)//1*5
     
+    ImGui.PopFont(ctx)
+    ImGui.PushFont(ctx, sans_serif)
+    ImGui.PopStyleVar(ctx, 1) 
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, size*0.1)    -- general rounding for color widgets
+    h_calc = h_calc+((size+.5)//1+spacing//1)*5
+
     -- MAIN COLOR PALETTE --
     for n=1, #main_palette do
       ImGui.PushID(ctx, n)
@@ -4217,7 +4234,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
         palette_button_flags = palette_button_flags | ImGui.ColorEditFlags_NoBorder
       end
       -- MAIN PALETTE BUTTONS --
-      if ImGui.ColorButton(ctx, '##palette', main_palette[n], palette_button_flags, size, size) then
+      if ImGui.ColorButton(ctx, '##palette', main_palette[n], palette_button_flags, size, (size+.5)//1) then
         if mods_retval == 8192 then
           sel_color[1] = main_palette[n]
           Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, true, main_palette, nil, set_cntrl.random_main, pal_tbl.tr[n], pal_tbl.it[n], n)
@@ -4266,8 +4283,8 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   if show_action_buttons and resize&64 ~= 64 then
     ImGui.PopFont(ctx)
     ImGui.PushFont(ctx, buttons_font)
-    if w >= 280+80/math.log(sys_scale+0.4) then 
-      
+
+    if w >= 440 then  
       button_text2 = 'Color children\n    to parent'
       if items_mode == 1 then
         button_text1 = 'Set items to\ndefault color'
@@ -4294,7 +4311,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     end
     
     ImGui.Dummy(ctx, av_x, size*0.6)
-    h_calc = h_calc+size2*0.6+bttn_height2
+    h_calc = h_calc+(size2*0.6)//1+bttn_height2//1
     ImGui.PushStyleColor(ctx, ImGui.Col_Text,0xffffffff) 
 
     if button_action(button_colors.button_color2,  button_text1, bttn_width, bttn_height, true, size*0.17, size*0.17) then
@@ -4318,14 +4335,14 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     
     ImGui.SameLine(ctx, 0.0, bttn_gap)
     if button_action(button_colors.button_color2, button_text5, bttn_width, bttn_height, true, size*0.17, size*0.17) then 
-      Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, nil, custom_palette, 1, set_cntrl.random_main)
+      Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, nil, custom_palette, 1, set_cntrl.random_custom)
     end
     ImGui.PopStyleColor(ctx)
   end
   
   ImGui.Dummy(ctx, av_x, size*0.9)
-  h_calc = h_calc+size*0.9
-  
+  h_calc = h_calc+(size*0.9)//1
+
   -- CHECK FOR RESIZE --
   ImGui.SameLine(ctx)
   max_x = ImGui.GetCursorPos(ctx)
@@ -4333,9 +4350,8 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   max_y = ImGui.GetCursorPosY(ctx)
   
   if w > (av_x+sides*2+.5)//1 then 
-    if h > h_calc+size*0.1 then
-    else
-      ImGui.Dummy(ctx, size*0.4, h_calc-max_y+size*0.12)
+    if h < h_calc+size*0.3 then
+      ImGui.Dummy(ctx, size*0.4, h_calc-max_y+size*0.3)
     end
   end
   
@@ -4520,6 +4536,10 @@ end
 -- LOOP -- MAIN FUNCTION --
 
 local function loop()
+  local want_font_size = max((av_x/font_divider1)//1, 10)
+  local want_font_size2 = max((av_x/font_divider2)//1, 2)
+  local want_font_size3 = (av_x/font_divider3)//1
+  local want_font_size4 = ((w-sides*2)/font_divider2)//1
   if want_font_size2 ~= saved_font_size then
     if buttons_font then ImGui.Detach(ctx, buttons_font) end
     if buttons_font2 then ImGui.Detach(ctx, buttons_font2) end
@@ -4571,20 +4591,17 @@ local function loop()
   if visible then
     w, h = ImGui.GetWindowSize(ctx)
     av_x, av_y = ImGui.GetContentRegionAvail(ctx)
-    local spacing = w*0.0026
-    if spacing < 1 then spacing = 1 end
+    local spacing = max((w*0.002), 1)
     size = (av_x-spacing*23)/24
     sides = w/44.671349
     size2 = (w-sides*2-spacing*23)/24
-    want_font_size = max((av_x/font_divider1)//1, 2)
-    want_font_size2 = max((av_x/font_divider2)//1, 2)
-    want_font_size3 = (av_x/font_divider3)//1
-    want_font_size4 = ((w-sides*2)/font_divider2)//1
+
     ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spacing, sides) 
     ImGui.End(ctx)
   else
     CollapsedPalette(init_state, nil, go)
   end
+
   ImGui.PopFont(ctx)
   ImGui.PopStyleColor(ctx, style_color_n)
   ImGui.PopStyleVar(ctx, style_var_m)
@@ -4596,11 +4613,9 @@ end
 
 
 -- EXECUTE --
-
 function Exit()
   reaper.set_action_options(8)
 end
-
 
 reaper.atexit(Exit)
 reaper.set_action_options(1|4)
