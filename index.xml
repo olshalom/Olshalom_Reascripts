@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="167a44ee38bce156f0fe041999edd8499e296ced">
+<index version="1" name="Olshalom_Reascripts" commit="71da911b4103e7f6690cfa32ebe5bb686b9b8926">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -622,6 +622,60 @@ Imrpovements:
     > Make font size look the same for WinOs and MacOs
     > straighten out code under the hood]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/167a44ee38bce156f0fe041999edd8499e296ced/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.8.8.5" author="olshalom, vitalker" time="2024-12-23T14:33:10Z">
+        <changelog><![CDATA[0.8.8.5
+Improvements:
+    > more precise height calculation for resizing window when show/hide sections
+    > improve color children to parent in rightclick menu
+Bug fixes:
+    > fix multiple elements coloring function 
+    > some more little fixes...
+0.8.8.4
+Bug fixes:
+    > fix loading fonts for windows
+
+0.8.8.3
+Improvements:
+    > support duplicate tracks with item content in shinycolors mode
+    > refine coloring children to parent in actionmenu
+
+Bug fixes:
+    > fix preview color for EditCustomColor ColorPicker Popup
+
+0.8.8.2
+Bug fixes:
+    > fix automatically color new items when set to custom color (advanced settings)
+    > when set main palette color settings, reset highlighting
+    > when reset main or custom palette, also reset highlighting
+    > switching between tracks and items under specific corner cases
+
+Imrpovements:
+    > refinement of "Color_new_items_automatically" function
+    > gradient coloring in Rightclick Menu 
+
+0.8.8
+  NEW features:
+    > All actions implemented for markers/regions and their manager
+    > static mode for Region/Marker Manager
+    > Rightclick "Actions Menu" for all color buttons
+    > "Get selected color(s) to button(s)" added as well for "Edit custom Color" and "Last touched"
+    > Show Mouse Modifier description in Menubar when widgets with modifiers are hovered
+    > Tooltips with description for some widgets
+    > Ghostmode for Menubar (hide menus at the top)
+    > Option for: open at mouse position (Settings)
+    > Resize window when tick/untick sections
+    > All widgets and fonts are now resizeable
+    > Automatically color new tracks when files are imported via drag'n'drop
+    > Automatically color auto added tracks when items are dragged to bottom of tracklist
+
+  Improvements:
+    > Reorganized Mousemodifiers (significant changes!!)
+    > Reset/set/edit custom color buttons functionalty via mousemodifiers
+    > Get Palette Menu to the foreground if already open 
+    > Make font size look the same for WinOs and MacOs
+    > straighten out code under the hood]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/71da911b4103e7f6690cfa32ebe5bb686b9b8926/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
     <reapack name="Discrete Auto Coloring (Chroma_Extension).lua" type="script" desc="Discrete Auto Coloring (Chroma_Exntension)">
