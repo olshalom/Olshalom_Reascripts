@@ -1,8 +1,10 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.8.9
+--  @version 0.8.9.1
 --  @date 23.03.06
 --  @changelog
+--    0.8.9.1
+--        > fix untick "color new tracks to defined color"
 --    0.8.9
 --    NEW features:
 --        > color elements to gradient shade function (dependent on main palette settings)
@@ -2985,6 +2987,7 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
           remainder = 24
         else
           auto_track.auto_custom = false
+          auto_track.auto_stable = false
           auto_track.auto_pal = pal_tbl
           auto_track.auto_palette = main_palette
           remainder = 120
@@ -2995,6 +2998,9 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       if ImGui.Checkbox(ctx, "Autocolor new tracks to defined color:", auto_track.auto_stable) then
         if auto_track.auto_stable then
           auto_track.auto_stable = false
+          auto_track.auto_pal = pal_tbl
+          auto_track.auto_palette = main_palette
+          remainder = 120
         else
           auto_track.auto_stable = true
           auto_track.auto_custom = false
