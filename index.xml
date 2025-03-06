@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="71da911b4103e7f6690cfa32ebe5bb686b9b8926">
+<index version="1" name="Olshalom_Reascripts" commit="a1e5bedabed945f186ce4599b9ac16c6c6227ee7">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -677,6 +677,23 @@ Imrpovements:
     > straighten out code under the hood]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/71da911b4103e7f6690cfa32ebe5bb686b9b8926/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
+      <version name="0.8.9" author="olshalom, vitalker" time="2025-03-06T00:15:26Z">
+        <changelog><![CDATA[0.8.9
+NEW features:
+    > color elements to gradient shade function (dependent on main palette settings)
+    > rightclick menu for "color element to gradient" action button
+    > add setting for color new tracks to defined color
+    > added "color markers/regions in time selection" function
+    > access setting "random coloring for multiple elements" via rightclick action button popup
+    > added action "set custom palette button" to rightclick menu
+    > Added Guidance accessible via Info buttons
+Improvements:
+    > change action buttons text for markers and regions independently
+    > scale rightclick menus along parent window
+    > color added click source in shiny colors mode
+    > better function to color background of current drawn item in shiny colors mode]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/a1e5bedabed945f186ce4599b9ac16c6c6227ee7/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
     </reapack>
     <reapack name="Discrete Auto Coloring (Chroma_Extension).lua" type="script" desc="Discrete Auto Coloring (Chroma_Exntension)">
       <version name="0.1" author="olshalom, vitalker" time="2024-08-18T21:00:56Z">
@@ -694,11 +711,11 @@ Imrpovements:
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs36 Homebase for REAPER scripts\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Homebase for REAPER scripts\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 by olshalom and others\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 featured:\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Chroma - Coloring Tool\sa180\par}
