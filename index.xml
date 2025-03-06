@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="a1e5bedabed945f186ce4599b9ac16c6c6227ee7">
+<index version="1" name="Olshalom_Reascripts" commit="5ca93c1cc93736ce6b0f9b463d82de5e35092ac5">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -693,6 +693,25 @@ Improvements:
     > color added click source in shiny colors mode
     > better function to color background of current drawn item in shiny colors mode]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/a1e5bedabed945f186ce4599b9ac16c6c6227ee7/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.8.9.1" author="olshalom, vitalker" time="2025-03-06T00:54:33Z">
+        <changelog><![CDATA[0.8.9.1
+    > fix untick "color new tracks to defined color"
+0.8.9
+NEW features:
+    > color elements to gradient shade function (dependent on main palette settings)
+    > rightclick menu for "color element to gradient" action button
+    > add setting for color new tracks to defined color
+    > added "color markers/regions in time selection" function
+    > access setting "random coloring for multiple elements" via rightclick action button popup
+    > added action "set custom palette button" to rightclick menu
+    > Added Guidance accessible via Info buttons
+Improvements:
+    > change action buttons text for markers and regions independently
+    > scale rightclick menus along parent window
+    > color added click source in shiny colors mode
+    > better function to color background of current drawn item in shiny colors mode]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/5ca93c1cc93736ce6b0f9b463d82de5e35092ac5/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
     <reapack name="Discrete Auto Coloring (Chroma_Extension).lua" type="script" desc="Discrete Auto Coloring (Chroma_Exntension)">
