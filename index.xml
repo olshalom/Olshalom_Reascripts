@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="5ca93c1cc93736ce6b0f9b463d82de5e35092ac5">
+<index version="1" name="Olshalom_Reascripts" commit="bd12fb5372c2471113b108617defb2b989dbdbe9">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -712,6 +712,20 @@ Improvements:
     > color added click source in shiny colors mode
     > better function to color background of current drawn item in shiny colors mode]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/5ca93c1cc93736ce6b0f9b463d82de5e35092ac5/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.9.0" author="olshalom, vitalker" time="2025-03-17T00:12:27Z">
+        <changelog><![CDATA[0.9.0
+NEW features:
+    > Quit after coloring
+    > Luminace Adjuster (enable via: Settings/SECTIONS/)
+    > color folder's tracks to gradient shade function:
+      > added to rightclick menu of "gradient action button"
+      > accessible via holding SHIFT+CNTRL for Windows and SHIFT+CMD for Mac by pressing "gradient action button"
+      > added to rightclick menu of any color button to set folder parent color followed by gradient shade for children
+Improvements:
+    > redesigned "Info" buttons
+    > save setting changes instantly to ExtState]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/bd12fb5372c2471113b108617defb2b989dbdbe9/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
     <reapack name="Discrete Auto Coloring (Chroma_Extension).lua" type="script" desc="Discrete Auto Coloring (Chroma_Exntension)">
