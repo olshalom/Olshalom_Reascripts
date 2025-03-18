@@ -1,8 +1,11 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
 --  @version 0.9.0
---  @date 25.03.16
+--  @date 25.03.18
 --  @changelog
+--    0.9.0.1
+--    Improvements:
+--        > Rightclick Menu for Luminamce Adjuster (Adjuster Settings)
 --    0.9.0
 --    NEW features:
 --        > Quit after coloring
@@ -345,6 +348,17 @@ local rv_markers = {}
 local sel_markers = { retval={}, number={}, m_type={} }
 local combo_items = { '   Track color', ' Custom color' }
 local mouse_item = {}
+
+local luminance = {
+  colorspace_lum        = loadsetting2("colorspace_lum", 0),
+  darkness_lum          = loadsetting2("darkness_lum", 0.100),    
+  lightness_lum         = loadsetting2("lightness_lum", 0.95),
+  cycle_lum             = loadsetting("cycle_lum", true),
+  range                 
+  }
+
+if luminance.colorspace_lum == 1 then luminance.range = 1 else luminance.range = 0.95 end
+
 
 -- CONTROL VARIABLES -- run out of local variables
 local pre_cntrl = {
@@ -1711,7 +1725,7 @@ function ColorMarkerTimeRange(tbl_tr, specific)
 end
 
 
-local function get_child_tracks(folder_track, tr_cnt)
+function get_child_tracks(folder_track, tr_cnt)
   local all_tracks = {}
   if GetMediaTrackInfo_Value(folder_track, "I_FOLDERDEPTH") ~= 1 then
     return all_tracks
@@ -3426,6 +3440,92 @@ function MultipleCustPopUp()
   ImGui.PopStyleColor(ctx, 3)
 end
 
+function LuminancePopUp(p_y, p_x, w, h, tr_cnt)
+  ImGui.PopFont(ctx)
+  ImGui.PushFont(ctx, sans_serif)
+
+  local selectable_flags = ImGui.SelectableFlags_DontClosePopups
+  ImGui.Dummy(ctx, 0, 20)
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_ButtonTextAlign, 0, 0.5)
+  ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffffffff)
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 6)
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_ButtonTextAlign, 0.5, 0.5)
+  if sys_os == 1 then
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 4) 
+  else
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 3) 
+  end
+  ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
+  button_action(button_colors.button_color4,'Luminance Adjuster Settings:', 220, 19, false) 
+  ImGui.PopStyleColor(ctx, 1)
+  ImGui.Dummy(ctx, 0, 6)
+  
+  ImGui.AlignTextToFramePadding(ctx)
+  ImGui.Text(ctx, 'Color model:')
+  ImGui.SameLine(ctx, 0, 10) 
+  
+  if ImGui.RadioButtonEx(ctx, 'HSL##2', luminance.colorspace_lum, 0) then
+    luminance.colorspace_lum = 0
+    luminance.lightness_range_lum = 0.9
+    luminance.range = 0.95
+    SetExtState(script_name ,'colorspace_lum', tostring(luminance.colorspace_lum),true)
+  end
+  if ImGui.IsItemHovered(ctx, ImGui.HoveredFlags_DelayNormal | ImGui.HoveredFlags_NoSharedDelay) and set_cntrl.tooltip_info then
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 4)
+    ImGui.SetTooltip(ctx, '\n HSL:\n\n Even pure colors (maximum saturation) can reach full white at a maximum.\n\n')
+    ImGui.PopStyleVar(ctx, 1)
+  end
+  ImGui.SameLine(ctx, 0, 10) 
+  if ImGui.RadioButtonEx(ctx, 'HSV##2', luminance.colorspace_lum, 1) then
+    luminance.colorspace_lum = 1
+    luminance.lightness_range_lum = 1
+    luminance.range = 1
+    SetExtState(script_name ,'colorspace_lum', tostring(luminance.colorspace_lum),true)
+  end
+  if ImGui.IsItemHovered(ctx, ImGui.HoveredFlags_DelayNormal | ImGui.HoveredFlags_NoSharedDelay) and set_cntrl.tooltip_info then
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 4)
+    ImGui.SetTooltip(ctx, "\n HSV:\n\n HSVs brightest point is always the pure color itself,\n with darker shades as values go down towards black.\n\n")
+    ImGui.PopStyleVar(ctx, 1)
+  end
+
+   
+  
+  ImGui.PushItemWidth(ctx, 220)
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 2)
+  button_action(button_colors.button_color4,'darkness - lightness', 220, 19, false) 
+  _, luminance.darkness_lum, luminance.lightness_lum = ImGui.SliderDouble2(ctx, '##2', luminance.darkness_lum, luminance.lightness_lum, 0.07, luminance.range )
+  
+  
+  ImGui.Dummy(ctx, 0, 6)
+  _, luminance.cycle_lum = ImGui.Checkbox(ctx, "cycle thru luminance", luminance.cycle_lum)
+  
+  ImGui.Separator(ctx)
+  ImGui.Dummy(ctx, 0, 6)
+  --[[
+  if button_action(button_colors.button_color1, '##Info2', 31, 31, true, 4, 15) then
+    openSettingWnd2 = true
+    scroll_amount = 0
+    get_scroll = false
+  end
+
+  -- DRAWING --
+  local pos = {ImGui.GetCursorScreenPos(ctx)}
+  local center = {pos[1]+10, pos[2]+2}
+  local draw_list = ImGui.GetWindowDrawList(ctx)
+  local draw_color = 0xffe8acff
+  local draw_thickness = 3
+  
+  ImGui.DrawList_AddLine(draw_list, center[1]+6, center[2]-21, center[1]+6, center[2]-13, draw_color, draw_thickness)
+  ImGui.DrawList_AddLine(draw_list, center[1]+3, center[2]-21, center[1]+8, center[2]-21, draw_color, 2)
+  ImGui.DrawList_AddLine(draw_list, center[1]+3, center[2]-13, center[1]+10, center[2]-13, draw_color, 2)
+  ImGui.DrawList_AddCircleFilled(draw_list, center[1]+6, center[2]-27, 2, draw_color,  0)
+  --]]
+  ImGui.Dummy(ctx, 0, 20)
+  ImGui.PopStyleVar(ctx, 4)
+  ImGui.PopStyleVar(ctx, 1)
+  ImGui.PopStyleColor(ctx)
+end
+
 
 -- ACTIONS POPUP --
 function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current_tbl, which_item, in_table, specific)
@@ -4481,12 +4581,20 @@ function AdjustLightness(sel_tracks, sel_items, direction)
       local r, g, b = ImGui.ColorConvertU32ToDouble4(color)
 
       local color_mode, color_mode2
-      if colorspace == 1 then color_mode, color_mode2 = ImGui.ColorConvertRGBtoHSV, ImGui.ColorConvertHSVtoRGB else color_mode, color_mode2 = rgbToHsl, hslToRgb  end
+      if luminance.colorspace_lum  == 1 then color_mode, color_mode2 = ImGui.ColorConvertRGBtoHSV, ImGui.ColorConvertHSVtoRGB else color_mode, color_mode2 = rgbToHsl, hslToRgb  end
       local h, s, v = color_mode(r, g, b) 
       if direction then
-        if v-0.06 < darkness then v = v-0.06+lightness-darkness else v = v-0.06 end
+        if luminance.cycle_lum then
+          if v-0.06 < luminance.darkness_lum then v = v-0.06+luminance.lightness_lum-luminance.darkness_lum else v = v-0.06 end
+        else
+          if v-0.06 < luminance.darkness_lum then v = luminance.darkness_lum else v = v-0.06 end
+        end
       else
-        if v+0.06 > lightness then v = v+0.06-lightness+darkness else v = v+0.06 end
+        if luminance.cycle_lum then
+          if v+0.06 > luminance.lightness_lum then v = v+0.06-luminance.lightness_lum+luminance.darkness_lum else v = v+0.06 end
+        else
+          if v+0.06 > luminance.lightness_lum then v = luminance.lightness_lum else v = v+0.06 end
+        end
       end
 
       r, g, b = color_mode2(h, s, v)
@@ -5078,6 +5186,23 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     if button_action(button_colors.button_color1, '-##Settings14', size*0.8, size*0.8, true, size*0.12, size*0.15) then 
       AdjustLightness(sel_tracks, sel_items, 1)
     end
+    
+    -- MOUSE MODIFIERS INFO FOR LUMINANCE ADJUSTER --
+    if ImGui.IsItemHovered(ctx) then
+      hovered_button(32, mods_retval)
+    end
+    -- RIGHTCLICK MENU --
+    if ImGui.BeginPopupContextItem(ctx, '##Settings16') then
+      --GradientPopUp(sel_tracks, sel_items, sel_color[1], sel_color[#sel_color], nil, grad_mode, p_y, p_x, w, h, tr_cnt)
+      LuminancePopUp(p_y, p_x, w, h, tr_cnt)
+      ImGui.EndPopup(ctx)
+      ImGui.PopFont(ctx)
+      ImGui.PushFont(ctx, buttons_font2)
+    end    
+    if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Right) and ImGui.IsWindowHovered(ctx) then
+      ImGui.OpenPopup(ctx, '##Settings16')
+    end
+    
     ImGui.SameLine(ctx, 0, size*0.2+spacing)
     if show_edit or show_lasttouched then
       ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx) +(size*0.1))
@@ -5085,6 +5210,16 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     if button_action(button_colors.button_color1, '+##Settings15', size*0.8, size*0.8, true, size*0.12, size*0.15) then 
       AdjustLightness(sel_tracks, sel_items, nil)
     end
+    
+    -- MOUSE MODIFIERS INFO FOR LUMINANCE ADJUSTER --
+    if ImGui.IsItemHovered(ctx) then
+      hovered_button(32, mods_retval)
+    end
+    
+    if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Right) and ImGui.IsWindowHovered(ctx) then
+      ImGui.OpenPopup(ctx, '##Settings16')
+    end
+    
     ImGui.SameLine(ctx, 0, size*0.2+spacing)
     if resize&512 == 512 or not (show_edit or show_lasttouched) then
       ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx) -(size*0.1))
@@ -5475,6 +5610,10 @@ function save_current_settings()
   SetExtState(script_name ,'p_selected_Y',            tostring(set_cntrl.selectables.selected.s_y),true)
   SetExtState(script_name ,'p_selected_X',            tostring(set_cntrl.selectables.selected.s_x),true)
   SetExtState(script_name ,'w',                       tostring(w),true)
+  SetExtState(script_name ,'colorspace_lum',          tostring(luminance.colorspace_lum),true)
+  SetExtState(script_name ,'darkness_lum',            tostring(luminance.darkness_lum),true)
+  SetExtState(script_name ,'lightness_lum',           tostring(luminance.lightness_lum),true)
+  SetExtState(script_name ,'cycle_lum',               tostring(luminance.cycle_lum),true)
   
 end
 
