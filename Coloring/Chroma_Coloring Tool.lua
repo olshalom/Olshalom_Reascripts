@@ -1,6 +1,6 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.9.0
+--  @version 0.9.0.1
 --  @date 25.03.18
 --  @changelog
 --    0.9.0.1
