@@ -5,7 +5,7 @@
 --  @changelog
 --    0.9.0.1
 --    Improvements:
---        > Rightclick Menu for Luminamce Adjuster (Adjuster Settings)
+--        > Rightclick Menu for Luminance Adjuster (Adjuster Settings)
 --
 --    0.9.0
 --    NEW features:
