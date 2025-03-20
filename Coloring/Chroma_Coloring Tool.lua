@@ -6,6 +6,7 @@
 --    0.9.0.1
 --    Improvements:
 --        > Rightclick Menu for Luminamce Adjuster (Adjuster Settings)
+--
 --    0.9.0
 --    NEW features:
 --        > Quit after coloring
