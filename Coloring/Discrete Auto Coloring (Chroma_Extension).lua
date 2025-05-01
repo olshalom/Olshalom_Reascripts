@@ -3,6 +3,11 @@
 --  @version 0.3
 --  @date 25.03.19
 --  @changelog
+--    0.4
+--      Bug fixes: 
+--        > fixed crash when item not valid
+--        > recolor items only in ShinyColorsMode 
+
 --    0.3
 --      > Updated and adjusted to behave similar to CHROMA 0.9.0
 
