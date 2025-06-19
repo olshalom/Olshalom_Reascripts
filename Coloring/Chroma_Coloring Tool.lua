@@ -19,6 +19,7 @@
 --        > safe static mode state to Extstate on exit 
 --        > bold text for main window, buttons and headlines
 
+--
 --    0.9.0.1
 --    Improvements:
 --        > Rightclick Menu for Luminamce Adjuster (Adjuster Settings)
