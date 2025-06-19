@@ -1,7 +1,12 @@
 --  @description Discrete Auto Coloring (Chroma_Exntension)
 --  @author olshalom, vitalker
---  @version 0.4
---  @date 25.03.19
+--  @version 0.5
+--  @date 25.06.19
+--  @changelog
+--    0.5
+--      Bug fixes: 
+--        > fixed bug with draw new item in ShinyColorsMode
+
 --  @changelog
 --    0.4
 --      Bug fixes: 
@@ -808,15 +813,15 @@ function DrawnItem(modifier)
         PreventUIRefresh(1) 
         local tr_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(mouse_item.item), "IP_TRACKNUMBER")
         SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", col_tbl.it[tr_ip] )
-        UpdateArrange()
+        reaper.UpdateItemInProject(mouse_item.item)
         PreventUIRefresh(-1)
       elseif automode_id == 2 then
         PreventUIRefresh(1) 
-        SetMediaItemTakeInfo_Value(GetActiveTake(item), "I_CUSTOMCOLOR", ImGui.ColorConvertNative(rgba >>8)|0x1000000)
+        SetMediaItemTakeInfo_Value(GetActiveTake(mouse_item.item), "I_CUSTOMCOLOR", ImGui.ColorConvertNative(rgba >>8)|0x1000000)
         if selected_mode == 1 then
-          SetMediaItemInfo_Value(item, "I_CUSTOMCOLOR", Background_color_rgba(rgba))
+          SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", Background_color_rgba(rgba))
         end
-        UpdateArrange()
+        reaper.UpdateItemInProject(mouse_item.item)
         PreventUIRefresh(-1) 
       end
       mouse_item.found = true
@@ -918,7 +923,7 @@ local function CollapsedPalette(init_state)
     local modifier = reaper.JS_Mouse_GetState(29)
     if modifier&1 == 1 and modifier&28 ~= 0 then
       DrawnItem(modifier)
-    else
+    elseif mouse_item.stop then
       mouse_item.pressed, mouse_item.current, mouse_item.pos, mouse_item.stop, mouse_item.found = nil
     end
   end
@@ -981,4 +986,3 @@ if selected_mode == 1 or auto_trk == true then
 else
   return
 end
-
