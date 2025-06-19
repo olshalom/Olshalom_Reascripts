@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="8e8cb7afe657bccca7c2518ef4e2ec2272519c2d">
+<index version="1" name="Olshalom_Reascripts" commit="988e9e60e992a40e8d2cd9f2ac03eded77180c8d">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -761,6 +761,28 @@ Improvements:
     > safe static mode state to Extstate on exit 
     > bold text for main window, buttons and headlines]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/7e921a458b5bd6f5e6ab9cf87f5e4c55538d7202/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.9.1.1" author="olshalom, vitalker" time="2025-06-19T20:29:21Z">
+        <changelog><![CDATA[0.9.1.1
+Refinements:
+-  when first track or item in project is added, follow selection change
+
+0.9.1
+NEW features:
+    > THEME Adjuster
+      - accessible via SETTINGS PopUp
+      - save, load, delete, import and export Theme Configurations
+      - edit colors and borders of all theme elements
+      - preconfigured FACTORY Presets and USER Presets
+
+    > "Context on startup" combobox under ADVANCED SETTINGS:
+      - choose between: current context, selected tracks, selected items
+
+Improvements:
+    > overall code improvements
+    > safe static mode state to Extstate on exit 
+    > bold text for main window, buttons and headlines]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/988e9e60e992a40e8d2cd9f2ac03eded77180c8d/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
     <reapack name="Discrete Auto Coloring (Chroma_Extension).lua" type="script" desc="Discrete Auto Coloring (Chroma_Exntension)">
