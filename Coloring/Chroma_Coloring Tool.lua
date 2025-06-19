@@ -449,8 +449,8 @@ end
 function ShadesOfColor(input, s_offset, v_offset, a_offset)
   local r, g, b, a = ImGui.ColorConvertU32ToDouble4(input)
   local h, s, v = ImGui.ColorConvertRGBtoHSV(r, g, b)
-  local r, g, b = ImGui.ColorConvertHSVtoRGB(h, max(s+s_offset, 0), min(v+v_offset, 1))
-  return ImGui.ColorConvertDouble4ToU32(r, g, b, max(a+a_offset, 0))
+  local r, g, b = ImGui.ColorConvertHSVtoRGB(h, math.min(1, math.max(0, s + s_offset)), math.min(1, math.max(0, v + v_offset)))
+  return ImGui.ColorConvertDouble4ToU32(r, g, b, math.min(1, math.max(0, a + a_offset)))
 end
 
 
