@@ -1,8 +1,13 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.9.1
+--  @version 0.9.1.1
 --  @date 25.06.19
+--
 --  @changelog
+--    0.9.1.1
+--    Refinements:
+--    -  when first track or item in project is added, follow selection change
+--
 --    0.9.1
 --    NEW features:
 --        > THEME Adjuster
