@@ -5749,8 +5749,10 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     sel_color = {}
     palette_high = {main = {}, cust = {}}
     items_mode = 2
-  --elseif items_mode == nil and static_mode == 0 then
-   -- items_mode = (sel_tracks > 0 and 0) or (sel_items > 0 and 1) 
+  elseif  items_mode == 2 and sel_tracks > 0 and (static_mode == 0 or static_mode == 1) then
+    items_mode = 0
+  elseif  items_mode == 2 and sel_items > 0 and (static_mode == 0 or static_mode == 2) then
+    items_mode =  1
   end
   
   if selected_mode == 1 then
@@ -6565,4 +6567,3 @@ reaper.atexit(function()
     end
   end)
   
-
