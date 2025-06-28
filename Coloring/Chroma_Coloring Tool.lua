@@ -1,9 +1,13 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.9.1.1
---  @date 25.06.19
+--  @version 0.9.1.2
+--  @date 25.06.28
 --
 --  @changelog
+--    0.9.1.2
+--    Bug fixes:
+--    - fix issue for focused window is ~= reaper.main and new drawn item via pencil is added in ShinyColorsMode
+--
 --    0.9.1.1
 --    Refinements:
 --    -  when first track or item in project is added, follow selection change
@@ -5383,12 +5387,7 @@ CheckForMod()
 
 
 function DrawnItem(modifier)
-  if not mouse_item.stop then
-    mouse_item.stop = true
-    mouse_item.current = reaper.JS_Mouse_GetCursor()
-    mouse_item.cursor = reaper.JS_Mouse_LoadCursor(185)
-  end
-  if mouse_item.current == mouse_item.cursor and not mouse_item.pressed then
+  if not mouse_item.pressed then
     for i = 1, #mouse_item.mod_flag_t do
       if modifier&28 == mouse_item.mod_flag_t[i] then
         mouse_item.pressed = true
@@ -5400,21 +5399,18 @@ function DrawnItem(modifier)
   if mouse_item.pressed and not mouse_item.found then
     mouse_item.item = reaper.GetItemFromPoint(mouse_item.pos[1]+1, mouse_item.pos[2], 0)
     if mouse_item.item ~= nil then
+      PreventUIRefresh(1) 
       if automode_id == 1 then
-        PreventUIRefresh(1) 
         local tr_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(mouse_item.item), "IP_TRACKNUMBER")
         SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", col_tbl.it[tr_ip] )
-        reaper.UpdateItemInProject(mouse_item.item)
-        PreventUIRefresh(-1)
-      elseif automode_id == 2 then
-        PreventUIRefresh(1) 
+      else
         SetMediaItemTakeInfo_Value(GetActiveTake(mouse_item.item), "I_CUSTOMCOLOR", ImGui.ColorConvertNative(rgba >>8)|0x1000000)
         if selected_mode == 1 then
           SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", Background_color_rgba(rgba))
         end
-        reaper.UpdateItemInProject(mouse_item.item)
-        PreventUIRefresh(-1) 
       end
+      reaper.UpdateItemInProject(mouse_item.item)
+      PreventUIRefresh(-1) 
       mouse_item.found = true
     end
   end
@@ -5760,17 +5756,17 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     items_mode =  1
   end
   
-  if selected_mode == 1 then
-    -- CHECK FOR CURRENT DRAWN ITEM IN SHINY MODE --
+  -- CHECK FOR CURRENT DRAWN ITEM IN SHINY MODE OR WHEN SET NEW ITEMS TO CUSTOM COLOR IS SET --
+  if selected_mode == 1 or automode_id == 2 then
     local modifier = reaper.JS_Mouse_GetState(29)
     if modifier&1 == 1 and modifier&28 ~= 0 then
       DrawnItem(modifier)
+      mouse_item.stop = true
     elseif mouse_item.stop then
       mouse_item.pressed, mouse_item.current, mouse_item.pos, mouse_item.stop, mouse_item.found = nil
     end
   end
   
-
   -- CALLING FUNCTIONS -- 
   Color_new_items_automatically(init_state, sel_items, go, test_item)
   get_sel_items_or_tracks_colors(sel_items, sel_tracks, test_item, test_take, test_track) 
