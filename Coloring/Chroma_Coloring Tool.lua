@@ -1,9 +1,13 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.9.1.3
+--  @version 0.9.1.4
 --  @date 25.06.29
 --
 --  @changelog
+--    0.9.1.4
+--    Bug fixes:
+--    - still more improvement for new drawn items especially if mouseaction is a nonvalid like doubleclick combined with left drag
+--
 --    0.9.1.3
 --    Bug fixes:
 --    - even more fixes for new drawn items by intercepting exact mouse behavior to capture every paint 
@@ -321,8 +325,8 @@ local GetItemFromPoint = reaper.GetItemFromPoint
 local Undo_CanRedo2 = reaper.Undo_CanRedo2
 local SetExtState = reaper.SetExtState
 insert = table.insert
-max = math.max
-min = math.min
+local max = math.max
+local min = math.min
  
  
 -- Thanks to Sexan for the next two functions -- 
@@ -880,14 +884,12 @@ local ruler_win = reaper.JS_Window_FindChildByID(main, 0x3ED)
 local arrange = reaper.JS_Window_FindChildByID(main, 0x3E8)
 local TCPDisplay = reaper.JS_Window_FindEx(main, main, "REAPERTCPDisplay", "" )
 local seen_msgs = {}
-local msgs = 'WM_LBUTTONDOWN'
-local msg2 = 'WM_LBUTTONUP'
 
-reaper.JS_WindowMessage_Intercept(ruler_win, msgs, true)
-reaper.JS_WindowMessage_Intercept(ruler_win, msg2, true)
-reaper.JS_WindowMessage_Intercept(arrange, msgs, true)
-reaper.JS_WindowMessage_Intercept(arrange, msg2, true)
-reaper.JS_WindowMessage_Intercept(TCPDisplay, msgs, true)
+reaper.JS_WindowMessage_Intercept(ruler_win, 'WM_LBUTTONDOWN', true)
+reaper.JS_WindowMessage_Intercept(ruler_win, 'WM_LBUTTONUP', true)
+reaper.JS_WindowMessage_Intercept(arrange, 'WM_LBUTTONDOWN', true)
+reaper.JS_WindowMessage_Intercept(arrange, 'WM_LBUTTONUP', true)
+reaper.JS_WindowMessage_Intercept(TCPDisplay, 'WM_LBUTTONDOWN', true)
 
 -- CHECK FOR RUN AUTOCOLORING AFTER EXIT SCIPT --
 do
@@ -5408,20 +5410,22 @@ function DrawnItem(m1, m2, m3)
       end
     end
     mouse_item.pos2 = {reaper.GetMousePosition()}
-    if  m2 ~= (seen_msgs[5] or 0) then
+    if m3 ~= (seen_msgs[7] or 0)  and modifier&28 ~= 0  then
+      seen_msgs[6] = m1
+      seen_msgs[7] = m3
+      mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
+    elseif m2 ~= (seen_msgs[5] or 0) then
       seen_msgs[6] = m1
       seen_msgs[5] = m2
       mouse_item.stop = true
-    elseif m3 ~= (seen_msgs[7] or 0) then
-      --seen_msgs[6] = m1
-      seen_msgs[7] = m3
-      seen_msgs[5] = m2
-      mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
     end
+  elseif m2 ~= (seen_msgs[5] or 0) then
+    seen_msgs[6] = m1
+    seen_msgs[5] = m2
+    mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
   elseif (mouse_item.stop or modifier&28 == 0) then
     mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
   end
-  
   if mouse_item.pressed and not mouse_item.found then
     if mouse_item.pos[1] ~= mouse_item.pos2[1] then
       local offset = mouse_item.pos2[1] - mouse_item.pos[1]
@@ -5575,11 +5579,11 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   end
   
   -- CHECK FOR WINDOW LMOUSEBUTTONDOWN --
-  local rvs = {reaper.JS_WindowMessage_Peek(ruler_win, msgs)} -- multiple values are required, so must be a table
-  local rvs6 = select(3, reaper.JS_WindowMessage_Peek(ruler_win, msg2))
-  local rvs2 = select(3, reaper.JS_WindowMessage_Peek(arrange, msgs))
-  local rvs5 = select(3, reaper.JS_WindowMessage_Peek(arrange, msg2))
-  local rvs3 = select(3, reaper.JS_WindowMessage_Peek(TCPDisplay, msgs))
+  local rvs = {reaper.JS_WindowMessage_Peek(ruler_win, 'WM_LBUTTONDOWN')} -- multiple values are required, so must be a table
+  local rvs6 = select(3, reaper.JS_WindowMessage_Peek(ruler_win, 'WM_LBUTTONUP'))
+  local rvs2 = select(3, reaper.JS_WindowMessage_Peek(arrange, 'WM_LBUTTONDOWN'))
+  local rvs5 = select(3, reaper.JS_WindowMessage_Peek(arrange, 'WM_LBUTTONUP'))
+  local rvs3 = select(3, reaper.JS_WindowMessage_Peek(TCPDisplay, 'WM_LBUTTONDOWN'))
   local _, rvs4, _, win = IsManagerWindow()
     
   -- IF UNDO THEN RESET CACHES --
@@ -6336,9 +6340,9 @@ local function CollapsedPalette(init_state)
     track_number_sw, col_tbl, cur_state4, it_cnt_sw, items_mode, test_track_sw = nil
   end
   
-  local rvs6 = select(3, reaper.JS_WindowMessage_Peek(ruler_win, msg2))
-  local rvs2 = select(3, reaper.JS_WindowMessage_Peek(arrange, msgs))
-  local rvs5 = select(3, reaper.JS_WindowMessage_Peek(arrange, msg2))
+  local rvs6 = select(3, reaper.JS_WindowMessage_Peek(ruler_win, 'WM_LBUTTONUP'))
+  local rvs2 = select(3, reaper.JS_WindowMessage_Peek(arrange, 'WM_LBUTTONDOWN'))
+  local rvs5 = select(3, reaper.JS_WindowMessage_Peek(arrange, 'WM_LBUTTONUP'))
 
   -- DEFINE "GLOBAL" VARIABLES --
   if go then
@@ -6593,11 +6597,11 @@ defer(loop)
 
 reaper.atexit(function()
   save_current_settings()
-  reaper.JS_WindowMessage_Release(ruler_win, msgs)
-  reaper.JS_WindowMessage_Release(ruler_win, msg2)
-  reaper.JS_WindowMessage_Release(arrange, msgs)
-  reaper.JS_WindowMessage_Release(arrange, msg2)
-  reaper.JS_WindowMessage_Release(TCPDisplay, msgs)
+  reaper.JS_WindowMessage_Release(ruler_win, 'WM_LBUTTONDOWN')
+  reaper.JS_WindowMessage_Release(ruler_win, 'WM_LBUTTONUP')
+  reaper.JS_WindowMessage_Release(arrange, 'WM_LBUTTONDOWN')
+  reaper.JS_WindowMessage_Release(arrange, 'WM_LBUTTONUP')
+  reaper.JS_WindowMessage_Release(TCPDisplay, 'WM_LBUTTONDOWN')
 end)
 
 reaper.atexit(function()
