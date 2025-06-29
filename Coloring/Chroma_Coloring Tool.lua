@@ -1,9 +1,13 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.9.1.2
---  @date 25.06.28
+--  @version 0.9.1.3
+--  @date 25.06.29
 --
 --  @changelog
+--    0.9.1.3
+--    Bug fixes:
+--    - even more fixes for new drawn items by intercepting exact mouse behavior to capture every paint 
+--
 --    0.9.1.2
 --    Bug fixes:
 --    - fix issue for focused window is ~= reaper.main and new drawn item via pencil is added in ShinyColorsMode
@@ -317,7 +321,7 @@ local GetItemFromPoint = reaper.GetItemFromPoint
 local Undo_CanRedo2 = reaper.Undo_CanRedo2
 local SetExtState = reaper.SetExtState
 insert = table.insert
-local max = math.max
+max = math.max
 min = math.min
  
  
@@ -877,9 +881,12 @@ local arrange = reaper.JS_Window_FindChildByID(main, 0x3E8)
 local TCPDisplay = reaper.JS_Window_FindEx(main, main, "REAPERTCPDisplay", "" )
 local seen_msgs = {}
 local msgs = 'WM_LBUTTONDOWN'
+local msg2 = 'WM_LBUTTONUP'
 
 reaper.JS_WindowMessage_Intercept(ruler_win, msgs, true)
+reaper.JS_WindowMessage_Intercept(ruler_win, msg2, true)
 reaper.JS_WindowMessage_Intercept(arrange, msgs, true)
+reaper.JS_WindowMessage_Intercept(arrange, msg2, true)
 reaper.JS_WindowMessage_Intercept(TCPDisplay, msgs, true)
 
 -- CHECK FOR RUN AUTOCOLORING AFTER EXIT SCIPT --
@@ -5361,13 +5368,13 @@ function ColorEditPopup(backup2, color2, ref_col2)
   return color2, got_color
 end
 
---local mod_flag_t = {}
+
 function CheckForMod()
-  local mod_actions = {'1 m','2 m', '3 m', '5 m', '6 m', '16 m', '18 m', '23 m', '24 m'}
+  local mod_actions = {'1 m','2 m', '3 m', '4 m', '5 m', '6 m', '16 m', '17 m', '18 m', '23 m', '24 m'}
   local index, mod = 0
   for i = 0 , 7 do
     local action = reaper.GetMouseModifier('MM_CTX_TRACK',i )
-    for z = 1, 9 do
+    for z = 1, 11 do
       if mod_actions[z] == action then
         if i == 1 then mod = 8
         elseif i == 2 then mod = 4
@@ -5386,32 +5393,63 @@ end
 CheckForMod()
 
 
-function DrawnItem(modifier)
-  if not mouse_item.pressed then
-    for i = 1, #mouse_item.mod_flag_t do
-      if modifier&28 == mouse_item.mod_flag_t[i] then
-        mouse_item.pressed = true
-        mouse_item.pos = {reaper.GetMousePosition()}
-      break
-      end
-    end
-  end
-  if mouse_item.pressed and not mouse_item.found then
-    mouse_item.item = reaper.GetItemFromPoint(mouse_item.pos[1]+1, mouse_item.pos[2], 0)
-    if mouse_item.item ~= nil then
-      PreventUIRefresh(1) 
-      if automode_id == 1 then
-        local tr_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(mouse_item.item), "IP_TRACKNUMBER")
-        SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", col_tbl.it[tr_ip] )
-      else
-        SetMediaItemTakeInfo_Value(GetActiveTake(mouse_item.item), "I_CUSTOMCOLOR", ImGui.ColorConvertNative(rgba >>8)|0x1000000)
-        if selected_mode == 1 then
-          SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", Background_color_rgba(rgba))
+function DrawnItem(m1, m2, m3)
+  local modifier = reaper.JS_Mouse_GetState(29)
+  if m1 ~= (seen_msgs[6] or 0)  and modifier&28 ~= 0  then
+    if not mouse_item.pressed then
+      for i = 1, #mouse_item.mod_flag_t do
+        if modifier&28 == mouse_item.mod_flag_t[i] then
+          mouse_item.pressed = true
+          mouse_item.pos = {reaper.GetMousePosition()}
+          mouse_item.found = false
+          mouse_item.stop = false
+        break
         end
       end
-      reaper.UpdateItemInProject(mouse_item.item)
-      PreventUIRefresh(-1) 
-      mouse_item.found = true
+    end
+    mouse_item.pos2 = {reaper.GetMousePosition()}
+    if  m2 ~= (seen_msgs[5] or 0) then
+      seen_msgs[6] = m1
+      seen_msgs[5] = m2
+      mouse_item.stop = true
+    elseif m3 ~= (seen_msgs[7] or 0) then
+      --seen_msgs[6] = m1
+      seen_msgs[7] = m3
+      seen_msgs[5] = m2
+      mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
+    end
+  elseif (mouse_item.stop or modifier&28 == 0) then
+    mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
+  end
+  
+  if mouse_item.pressed and not mouse_item.found then
+    if mouse_item.pos[1] ~= mouse_item.pos2[1] then
+      local offset = mouse_item.pos2[1] - mouse_item.pos[1]
+      local step = offset >= 0 and 1 or -1 
+      for i = 1, math.abs(offset) do
+        local x = mouse_item.pos[1] + (i * step)
+        mouse_item.item = reaper.GetItemFromPoint(x, mouse_item.pos[2], 0)
+        if mouse_item.item then
+          break
+        end
+      end
+      if mouse_item.item then
+        PreventUIRefresh(1) 
+        if automode_id == 1 then
+          local tr_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(mouse_item.item), "IP_TRACKNUMBER")
+          SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", col_tbl.it[tr_ip] )
+        else
+          SetMediaItemTakeInfo_Value(GetActiveTake(mouse_item.item), "I_CUSTOMCOLOR", ImGui.ColorConvertNative(rgba >>8)|0x1000000)
+          if selected_mode == 1 then
+            SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", Background_color_rgba(rgba))
+          end
+        end
+        reaper.UpdateItemInProject(mouse_item.item)
+        PreventUIRefresh(-1) 
+        mouse_item.found = true
+        mouse_item.stop = true
+        mouse_item.pos, mouse_item.pos2, mouse_item.item = nil
+      end
     end
   end
 end
@@ -5538,7 +5576,9 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   
   -- CHECK FOR WINDOW LMOUSEBUTTONDOWN --
   local rvs = {reaper.JS_WindowMessage_Peek(ruler_win, msgs)} -- multiple values are required, so must be a table
+  local rvs6 = select(3, reaper.JS_WindowMessage_Peek(ruler_win, msg2))
   local rvs2 = select(3, reaper.JS_WindowMessage_Peek(arrange, msgs))
+  local rvs5 = select(3, reaper.JS_WindowMessage_Peek(arrange, msg2))
   local rvs3 = select(3, reaper.JS_WindowMessage_Peek(TCPDisplay, msgs))
   local _, rvs4, _, win = IsManagerWindow()
     
@@ -5758,14 +5798,9 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   
   -- CHECK FOR CURRENT DRAWN ITEM IN SHINY MODE OR WHEN SET NEW ITEMS TO CUSTOM COLOR IS SET --
   if selected_mode == 1 or automode_id == 2 then
-    local modifier = reaper.JS_Mouse_GetState(29)
-    if modifier&1 == 1 and modifier&28 ~= 0 then
-      DrawnItem(modifier)
-      mouse_item.stop = true
-    elseif mouse_item.stop then
-      mouse_item.pressed, mouse_item.current, mouse_item.pos, mouse_item.stop, mouse_item.found = nil
-    end
+    DrawnItem(rvs2, rvs5, rvs6)
   end
+ 
   
   -- CALLING FUNCTIONS -- 
   Color_new_items_automatically(init_state, sel_items, go, test_item)
@@ -6300,6 +6335,10 @@ local function CollapsedPalette(init_state)
     old_project, projfn2, track_number_stop = cur_project, projfn, tr_cnt
     track_number_sw, col_tbl, cur_state4, it_cnt_sw, items_mode, test_track_sw = nil
   end
+  
+  local rvs6 = select(3, reaper.JS_WindowMessage_Peek(ruler_win, msg2))
+  local rvs2 = select(3, reaper.JS_WindowMessage_Peek(arrange, msgs))
+  local rvs5 = select(3, reaper.JS_WindowMessage_Peek(arrange, msg2))
 
   -- DEFINE "GLOBAL" VARIABLES --
   if go then
@@ -6368,12 +6407,9 @@ local function CollapsedPalette(init_state)
     cust_tbl = generate_color_table(cust_tbl, custom_palette)
   end
   
-  -- CHECK FOR CURRENT DRAWN ITEM IN SHINY MODE --
-  local modifier = reaper.JS_Mouse_GetState(29)
-  if modifier&1 == 1 and modifier&28 ~= 0 then
-    DrawnItem(modifier)
-  else
-    mouse_item.pressed, mouse_item.current, mouse_item.pos, mouse_item.stop, mouse_item.found = nil
+  -- CHECK FOR CURRENT DRAWN ITEM IN SHINY MODE OR WHEN SET NEW ITEMS TO CUSTOM COLOR IS SET --
+  if selected_mode == 1 or automode_id == 2 then
+    DrawnItem(rvs2, rvs5, rvs6)
   end
   
   -- CALLING FUNCTIONS --
@@ -6558,7 +6594,9 @@ defer(loop)
 reaper.atexit(function()
   save_current_settings()
   reaper.JS_WindowMessage_Release(ruler_win, msgs)
+  reaper.JS_WindowMessage_Release(ruler_win, msg2)
   reaper.JS_WindowMessage_Release(arrange, msgs)
+  reaper.JS_WindowMessage_Release(arrange, msg2)
   reaper.JS_WindowMessage_Release(TCPDisplay, msgs)
 end)
 
