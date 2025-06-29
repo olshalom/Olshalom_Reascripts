@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="7f04a9fccd0cd2b1d7f4bfb2395ec72ead94feec">
+<index version="1" name="Olshalom_Reascripts" commit="5277cc5e674219b6713cb21b704192ac52eaad77">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -809,6 +809,36 @@ Improvements:
     > safe static mode state to Extstate on exit 
     > bold text for main window, buttons and headlines]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/7f04a9fccd0cd2b1d7f4bfb2395ec72ead94feec/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.9.1.3" author="olshalom, vitalker" time="2025-06-29T07:54:43Z">
+        <changelog><![CDATA[0.9.1.3
+Bug fixes:
+- even more fixes for new drawn items by intercepting exact mouse behavior to capture every paint 
+
+0.9.1.2
+Bug fixes:
+- fix issue for focused window is ~= reaper.main and new drawn item via pencil is added in ShinyColorsMode
+
+0.9.1.1
+Refinements:
+-  when first track or item in project is added, follow selection change
+
+0.9.1
+NEW features:
+    > THEME Adjuster
+      - accessible via SETTINGS PopUp
+      - save, load, delete, import and export Theme Configurations
+      - edit colors and borders of all theme elements
+      - preconfigured FACTORY Presets and USER Presets
+
+    > "Context on startup" combobox under ADVANCED SETTINGS:
+      - choose between: current context, selected tracks, selected items
+
+Improvements:
+    > overall code improvements
+    > safe static mode state to Extstate on exit 
+    > bold text for main window, buttons and headlines]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/5277cc5e674219b6713cb21b704192ac52eaad77/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
     <reapack name="Discrete Auto Coloring (Chroma_Extension).lua" type="script" desc="Discrete Auto Coloring (Chroma_Exntension)">
