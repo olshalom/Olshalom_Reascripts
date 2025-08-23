@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="7c7eed3d5386436bfc048712dcd3e5ae84965b22">
+<index version="1" name="Olshalom_Reascripts" commit="80a1fa0c871d94d1fa52268c4b1020b57058043f">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -873,6 +873,23 @@ Improvements:
     > safe static mode state to Extstate on exit 
     > bold text for main window, buttons and headlines]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/7c7eed3d5386436bfc048712dcd3e5ae84965b22/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.9.2" author="olshalom, vitalker" time="2025-08-23T22:08:02Z">
+        <changelog><![CDATA[0.9.2
+Compatibility:
+- needs ReaImGui 0.10
+
+Improvements:
+- Improved resizing when toggling sections under the hood – cleaner code structure to support future feature development
+- If AddOnWnd is already open, clicking any Info or Theme Adjuster button brings the window to the foreground
+- More idiomatic text for Action Buttons and Info status
+- Added tooltips for the 'Custom Palette to Element' and 'Main Palette to Element buttons'
+- Refined text for the random checkbox in the Palette Menu
+
+Bug fixes:
+- Fixed saving of an edited and unsaved theme on exit, so it reloads correctly at startup
+- Fixed saving of current usertheme on exit, so it reloads correctly at startup]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/80a1fa0c871d94d1fa52268c4b1020b57058043f/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
     <reapack name="Discrete Auto Coloring (Chroma_Extension).lua" type="script" desc="Discrete Auto Coloring (Chroma_Exntension)">
