@@ -1,5 +1,12 @@
 --  @description Discrete Auto Coloring (Chroma_Exntension)
 --  @author olshalom, vitalker
+--  @version 0.6
+--  @date 25.08.24
+--  @changelog
+--    0.6
+--      Update:
+--      - uodate to latest auto coloring functions
+
 --  @version 0.5
 --  @date 25.06.19
 --  @changelog
@@ -139,6 +146,14 @@ local function SetButtonState(set)
 end
 
 
+
+-- GET HANDLES OF WINDOWS AND INTERCEPT --
+local main = reaper.GetMainHwnd()
+local ruler_win = reaper.JS_Window_FindChildByID(main, 0x3ED)
+local arrange = reaper.JS_Window_FindChildByID(main, 0x3E8)
+local seen_msgs = {}
+
+
 function hslToRgb(h, s, l)
   local r, g, b
   if s == 0 then
@@ -241,8 +256,7 @@ local auto_custom
 local auto_palette
 local sel_tab
 local auto_track = {auto_pal, auto_palette, auto_retval, auto_custom = loadsetting("auto_custom", false), auto_stable = loadsetting("auto_stable", false)}
-local mouse_item = {}
-local mouse_item = {}
+local mouse_item = {mod_flag_t ={}}
 
 
 -- PREDEFINE VALUES AS LOCAL--
@@ -767,13 +781,12 @@ function generate_custom_color_table()
 end
 
 
-local mod_flag_t = {}
 function CheckForMod()
-  local mod_actions = {'1 m','2 m', '3 m', '5 m', '6 m', '16 m', '18 m', '23 m', '24 m'}
+  local mod_actions = {'1 m','2 m', '3 m', '4 m', '5 m', '6 m', '16 m', '17 m', '18 m', '23 m', '24 m'}
   local index, mod = 0
   for i = 0 , 7 do
     local action = reaper.GetMouseModifier('MM_CTX_TRACK',i )
-    for z = 1, 9 do
+    for z = 1, 11 do
       if mod_actions[z] == action then
         if i == 1 then mod = 8
         elseif i == 2 then mod = 4
@@ -783,7 +796,7 @@ function CheckForMod()
         elseif i == 6 then mod = 20
         elseif i == 7 then mod = 28 end
         index = index +1 
-        mod_flag_t[index] = mod
+        mouse_item.mod_flag_t[index] = mod
       end
     end
   end
@@ -791,40 +804,65 @@ end
 
 CheckForMod()
 
-function DrawnItem(modifier)
-  if not mouse_item.stop then
-    mouse_item.stop = true
-    mouse_item.current = reaper.JS_Mouse_GetCursor()
-    mouse_item.cursor = reaper.JS_Mouse_LoadCursor(185)
-  end
-  if mouse_item.current == mouse_item.cursor and not mouse_item.pressed then
-    for i = 1, #mod_flag_t do
-      if modifier&28 == mod_flag_t[i] then
-        mouse_item.pressed = true
-        mouse_item.pos = {reaper.GetMousePosition()}
-      break
+function DrawnItem(m1, m2, m3)
+  local modifier = reaper.JS_Mouse_GetState(29)
+  if m1 ~= (seen_msgs[6] or 0)  and modifier&28 ~= 0  then
+    if not mouse_item.pressed then
+      for i = 1, #mouse_item.mod_flag_t do
+        if modifier&28 == mouse_item.mod_flag_t[i] then
+          mouse_item.pressed = true
+          mouse_item.pos = {reaper.GetMousePosition()}
+          mouse_item.found = false
+          mouse_item.stop = false
+        break
+        end
       end
     end
+    mouse_item.pos2 = {reaper.GetMousePosition()}
+    if m3 ~= (seen_msgs[7] or 0)  and modifier&28 ~= 0  then
+      seen_msgs[6] = m1
+      seen_msgs[7] = m3
+      mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
+    elseif m2 ~= (seen_msgs[5] or 0) then
+      seen_msgs[6] = m1
+      seen_msgs[5] = m2
+      mouse_item.stop = true
+    end
+  elseif m2 ~= (seen_msgs[5] or 0) then
+    seen_msgs[6] = m1
+    seen_msgs[5] = m2
+    mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
+  elseif (mouse_item.stop or modifier&28 == 0) then
+    mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
   end
   if mouse_item.pressed and not mouse_item.found then
-    mouse_item.item = reaper.GetItemFromPoint(mouse_item.pos[1]+1, mouse_item.pos[2], 0)
-    if mouse_item.item ~= nil then
-      if automode_id == 1 then
+    if mouse_item.pos[1] ~= mouse_item.pos2[1] then
+      local offset = mouse_item.pos2[1] - mouse_item.pos[1]
+      local step = offset >= 0 and 1 or -1 
+      for i = 1, math.abs(offset) do
+        local x = mouse_item.pos[1] + (i * step)
+        mouse_item.item = reaper.GetItemFromPoint(x, mouse_item.pos[2], 0)
+        if mouse_item.item then
+          break
+        end
+      end
+      if mouse_item.item then
         PreventUIRefresh(1) 
-        local tr_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(mouse_item.item), "IP_TRACKNUMBER")
-        SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", col_tbl.it[tr_ip] )
-        reaper.UpdateItemInProject(mouse_item.item)
-        PreventUIRefresh(-1)
-      elseif automode_id == 2 then
-        PreventUIRefresh(1) 
-        SetMediaItemTakeInfo_Value(GetActiveTake(mouse_item.item), "I_CUSTOMCOLOR", ImGui.ColorConvertNative(rgba >>8)|0x1000000)
-        if selected_mode == 1 then
-          SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", Background_color_rgba(rgba))
+        if automode_id == 1 then
+          local tr_ip = GetMediaTrackInfo_Value(GetMediaItemTrack(mouse_item.item), "IP_TRACKNUMBER")
+          SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", col_tbl.it[tr_ip] )
+        else
+          SetMediaItemTakeInfo_Value(GetActiveTake(mouse_item.item), "I_CUSTOMCOLOR", ImGui.ColorConvertNative(rgba >>8)|0x1000000)
+          if selected_mode == 1 then
+            SetMediaItemInfo_Value(mouse_item.item, "I_CUSTOMCOLOR", Background_color_rgba(rgba))
+          end
         end
         reaper.UpdateItemInProject(mouse_item.item)
         PreventUIRefresh(-1) 
+        mouse_item.found = true
+        mouse_item.stop = true
+        mouse_item.pos, mouse_item.pos2, mouse_item.item = nil
       end
-      mouse_item.found = true
     end
   end
 end
@@ -848,7 +886,11 @@ local function CollapsedPalette(init_state)
     old_project, projfn2, track_number_stop = cur_project, projfn, tr_cnt
     track_number_sw, col_tbl, cur_state4, it_cnt_sw, items_mode, test_track_sw = nil
   end
-  
+
+  local rvs6 = select(3, reaper.JS_WindowMessage_Peek(ruler_win, 'WM_LBUTTONUP'))
+  local rvs2 = select(3, reaper.JS_WindowMessage_Peek(arrange, 'WM_LBUTTONDOWN'))
+  local rvs5 = select(3, reaper.JS_WindowMessage_Peek(arrange, 'WM_LBUTTONUP'))
+
   -- DEFINE "GLOBAL" VARIABLES --
   if go then
     sel_items = CountSelectedMediaItems(0)
@@ -918,15 +960,12 @@ local function CollapsedPalette(init_state)
     cust_tbl = generate_custom_color_table()
   end
   
-  if selected_mode == 1 then
-    -- CHECK FOR CURRENT DRAWN ITEM IN SHINY MODE --
-    local modifier = reaper.JS_Mouse_GetState(29)
-    if modifier&1 == 1 and modifier&28 ~= 0 then
-      DrawnItem(modifier)
-    elseif mouse_item.stop then
-      mouse_item.pressed, mouse_item.current, mouse_item.pos, mouse_item.stop, mouse_item.found = nil
-    end
+  --
+  -- CHECK FOR CURRENT DRAWN ITEM IN SHINY MODE OR WHEN SET NEW ITEMS TO CUSTOM COLOR IS SET --
+  if selected_mode == 1 or automode_id == 2 then
+    DrawnItem(rvs2, rvs5, rvs6)
   end
+ --
   
   -- CALLING FUNCTIONS --
   Color_new_items_automatically(init_state, sel_items, go, test_item)
@@ -978,11 +1017,22 @@ if auto_trk == false and selected_mode == 0 then
   end
 end
 
+
+
+
 if selected_mode == 1 or auto_trk == true then
+  reaper.JS_WindowMessage_Intercept(ruler_win, 'WM_LBUTTONUP', true)
+  reaper.JS_WindowMessage_Intercept(arrange, 'WM_LBUTTONDOWN', true)
+  reaper.JS_WindowMessage_Intercept(arrange, 'WM_LBUTTONUP', true)
   SetButtonState(1)
   reaper.set_action_options(1)
   defer(loop)
   reaper.atexit(SetButtonState)
+  reaper.atexit(function()
+    reaper.JS_WindowMessage_Release(ruler_win, 'WM_LBUTTONUP')
+    reaper.JS_WindowMessage_Release(arrange, 'WM_LBUTTONDOWN')
+    reaper.JS_WindowMessage_Release(arrange, 'WM_LBUTTONUP')
+  end)
 else
   return
 end
