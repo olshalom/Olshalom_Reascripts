@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="80a1fa0c871d94d1fa52268c4b1020b57058043f">
+<index version="1" name="Olshalom_Reascripts" commit="0a010e6ffb581cbdbdad3f4769b4ab543354081e">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -922,6 +922,12 @@ Bug fixes:
   Bug fixes: 
     > fixed bug with draw new item in ShinyColorsMode]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/8e8cb7afe657bccca7c2518ef4e2ec2272519c2d/Coloring/Discrete%20Auto%20Coloring%20(Chroma_Extension).lua</source>
+      </version>
+      <version name="0.6" author="olshalom, vitalker" time="2025-08-23T22:19:45Z">
+        <changelog><![CDATA[0.6
+  Update:
+  - uodate to latest auto coloring functions]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/0a010e6ffb581cbdbdad3f4769b4ab543354081e/Coloring/Discrete%20Auto%20Coloring%20(Chroma_Extension).lua</source>
       </version>
     </reapack>
   </category>
