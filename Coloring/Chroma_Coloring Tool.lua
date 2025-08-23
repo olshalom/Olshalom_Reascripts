@@ -1,9 +1,24 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.9.1.4
---  @date 25.06.29
+--  @version 0.9.2
+--  @date 25.08.23
 --
 --  @changelog
+--    0.9.2
+--    Compatibility:
+--    - needs ReaImGui 0.10
+--
+--    Improvements:
+--    - Improved resizing when toggling sections under the hood – cleaner code structure to support future feature development
+--    - If AddOnWnd is already open, clicking any Info or Theme Adjuster button brings the window to the foreground
+--    - More idiomatic text for Action Buttons and Info status
+--    - Added tooltips for the 'Custom Palette to Element' and 'Main Palette to Element buttons'
+--    - Refined text for the random checkbox in the Palette Menu
+--
+--    Bug fixes:
+--    - Fixed saving of an edited and unsaved theme on exit, so it reloads correctly at startup
+--    - Fixed saving of current usertheme on exit, so it reloads correctly at startup
+
 --    0.9.1.4
 --    Bug fixes:
 --    - still more improvement for new drawn items especially if mouseaction is a nonvalid like doubleclick combined with left drag
@@ -154,9 +169,9 @@
 --      Mouse modifiers:
 --        > Shift + Command/Control: all Markers and Region in time selection get same color
 --        > Shift: color Markers or Regions in time selection to same color dependent on focus in the selection indicator
---     
+--      
 --      Appearance:
---        > Refinement of mainwindow frameborders
+--        > Refinement of mainwindow framebor  dders
 --        > Refinement of Selection indicator
 --        > Redesign ShinyColors Mode indicator
 --
@@ -168,32 +183,30 @@
 --      Bug fixes:
 --        > Updating trackcolor table on change of custom palette for automatic track coloring
 
+
 local script_name = 'Chroma - Coloring Tool'
 local OS = reaper.GetOS()
-local sys_os, sys_offset, sys_scale, modifier_text
-local ImGui, font_divider1, font_divider2, font_divider3, font_size, saved_font_size
-local frame_paddingY, cntrl_key
+local sys_os, sys_offset, modifier_text
+local ImGui
+local font_size = 15
+local font_divider1, font_divider2, font_divider3 = 42, 45, 50 
 
 if OS:find("OSX") or OS:find("macOS") then
   sys_os = 1
   sys_offset = 0
-  font_size, frame_paddingY = 15, 0.18
-  font_divider1, font_divider2, font_divider3 = 42, 45, 50 
-  modifier_text = { "SHIFT: Color to custom palette (start with pressed)", "SHIFT: Color to main palette (start with pressed)",
-                    "CMD+SHIFT: Color to gradient (2 clicks)", "OPTION: Reset custom palette button", 
-                    "CMD+OPTION: Get selected colors to buttons", "CMD: Color tracks and all their items (hard reset)",
-                    "CMD: Color items and its tracks to same color", "CMD: Color mrks/regions inside timeselection to same color",
-                    "Modifier not used", "SHIFT+OPTION: Edit color", "SHIFT: Color to gradient shade"}
+  modifier_text = { "SHIFT: Color with Custom Palette (start with pressed)", "SHIFT: Color with main palette (start with pressed)",
+                    "CMD+SHIFT: Color with Gradient (select first and last)", "OPTION: Reset custom palette button", 
+                    "CMD+OPTION: Set button to selected color", "CMD: Color tracks and all their items (hard reset)",
+                    "CMD: Color items and their tracks with the same color", "CMD: Color markers/regions inside timeselection with same color",
+                    "Modifier not used", "SHIFT+OPTION: Edit color", "SHIFT: Color with gradient shade"}
 else 
   sys_os = 0
   sys_offset = 30
-  font_size, frame_paddingY = 16, 0.1
-  font_divider1, font_divider2, font_divider3 = 38, 42, 46 
-  modifier_text = { "SHIFT: Color to custom palette (start with pressed)", "SHIFT: Color to main palette (start with pressed)",
-                    "CTRL+SHIFT: Color to gradient (2 clicks)", "ALT: Reset custom palette button", 
-                    "CTRL+ALT: Get selected color to button", "CTRL: Color tracks and all their items (hard reset)",
-                    "CTRL: Color items and its tracks to same color", "CTRL: Color markers/regions inside timeselection to same color",
-                    "Modifier not used", "SHIFT+ALT: Edit color", "SHIFT: Color to gradient shade"}
+  modifier_text = { "SHIFT: Color with Custom Palette (start with pressed)", "SHIFT: Color with main palette (start with pressed)",
+                    "CTRL+SHIFT: Color with Gradient (select first and last)", "ALT: Reset custom palette button", 
+                    "CTRL+ALT: Set button to selected color", "CTRL: Color tracks and all their items (hard reset)",
+                    "CTRL: Color items and their tracks with the same color", "CTRL: Color markers/regions inside timeselection with same color",
+                    "Modifier not used", "SHIFT+ALT: Edit color", "SHIFT: Color with gradient shade"}
 end
 
 
@@ -220,59 +233,36 @@ end
 ----______________________________----
 
 do
-  local err
   local check = {
-      {reaper.ImGui_CreateContext, 'requires ReaImGui:\nReaScript binding for Dear ImGui.', 'Please install this Extension to use the Script.',
-      'ReaImGui: ReaScript binding for Dear ImGui', 'https://forum.cockos.com/showthread.php?t=250419'},
-      {reaper.BR_PositionAtMouseCursor, 'SWS Extension required.', 'Please install SWS Extension as well.',
-      'SWS/S&M extension', 'https://www.sws-extension.org'},
-      {reaper.JS_Mouse_GetState, 'JS_ReaScriptAPI required.', 'Please install JS_ReaScriptAPI as well.',
-      'js_ReaScriptAPI: API functions for ReaScripts', 'https://forum.cockos.com/showthread.php?t=212174'},
-      {reaper.ImGui_CreateContext, 'Version of ReaImGui Extension is to old.', 'Please install the latest Version to use the Script.',
-      'ReaImGui: ReaScript binding for Dear ImGui', 'https://forum.cockos.com/showthread.php?t=250419'}
+      {reaper.ImGui_CreateContext, 'requires ReaImGui:\nReaScript binding for Dear ImGui.', 'You need to install this Extension to use the Script.', 'ReaImGui: ReaScript binding for Dear ImGui', 'https://forum.cockos.com/showthread.php?t=250419'},
+      {reaper.BR_PositionAtMouseCursor, 'SWS Extension required.', 'You need to install SWS Extension as well.', 'SWS/S&M extension', 'https://www.sws-extension.org'},
+      {reaper.JS_Mouse_GetState, 'JS_ReaScriptAPI required.', 'You need to install JS_ReaScriptAPI as well.', 'js_ReaScriptAPI: API functions for ReaScripts', 'https://forum.cockos.com/showthread.php?t=212174'},
+      {reaper.ImGui_GetBuiltinPath, 'Version of ReaImGui Extension is to old.', 'You need to install the latest Version to use the Script.', 'ReaImGui: ReaScript binding for Dear ImGui', 'https://forum.cockos.com/showthread.php?t=250419'}
     }
     
-  local function OutputMB(chk_tbl, int2)
-    local userinput = reaper.MB(chk_tbl[int2][2]..'\n\n'..chk_tbl[int2][3]..'\n\nDo you want to install??', script_name, 4)
-    if userinput == 6 then
-      if reaper.APIExists('ReaPack_BrowsePackages') then
-        reaper.ReaPack_BrowsePackages(chk_tbl[int2][4])
-        return
+  local function CheckForApi(tbl, x)
+    if not tbl[x][1] then
+      local userinput = reaper.MB(tbl[x][2]..'\n\n'..tbl[x][3]..'\n\nDo you want to install??', script_name, 4)
+      if userinput == 6 then
+        if reaper.ReaPack_BrowsePackages then
+          reaper.ReaPack_BrowsePackages(tbl[x][4])
+          return true
+        else
+          OpenURL(tbl[x][5])
+          return true
+        end
       else
-        OpenURL(chk_tbl[int2][5])
-        return
+        return true
       end
-    else
-      return
     end
   end
   
-  local function CheckForApi(tbl_chk, int)
-    if not tbl_chk[int][1] then
-      OutputMB(tbl_chk, int)
-      err = true
-      return
-    end
-  end
-  for i = 1, #check-1 do
-    err = CheckForApi(check, i)
+  for i = 1, #check do
+    if CheckForApi(check, i) then return end
   end
   
-  local imgui_ok
-  if not reaper.ImGui_GetBuiltinPath then
-    imgui_ok = false
-  else
-    package.path = reaper.ImGui_GetBuiltinPath() .. '/?.lua'
-    imgui_ok, ImGui = pcall(function() return require 'imgui' '0.9.2' end)
-    if not imgui_ok then
-      check[4][2] = ImGui
-    end
-  end
-  if not imgui_ok then
-    OutputMB(check, 4)
-    err = true
-  end
-  if err then return end
+  package.path = reaper.ImGui_GetBuiltinPath() .. '/?.lua'
+  ImGui = require 'imgui' '0.10.0.1' 
 end
 
 
@@ -350,7 +340,7 @@ function serializeTable(val, name, depth)
   end
   if type(val) == "table" then
     tmp = tmp .. "{"                                                      
-    for k, v in ipairs(val) do
+    for k, v in pairs(val) do
       tmp = tmp .. serializeTable(v, k, depth + 1) .. "," 
     end
     tmp = tmp .. string.rep(" ", depth) .. "}"
@@ -367,26 +357,16 @@ function serializeTable(val, name, depth)
 end
 
 
-function loadsetting(str3, alt)
-  local function toboolean(str2) return str2 == "true" end
-  local var
-  if reaper.HasExtState(script_name, str3) then
-    var = toboolean(reaper.GetExtState(script_name, str3))
+function loadsetting(key, default)
+  if not reaper.HasExtState(script_name, key) then
+    return default
+  end
+  local val = reaper.GetExtState(script_name, key)
+  if type(default) == "boolean" then
+    return val == "true"
   else
-    var = alt
+    return tonumber(val) or default
   end
-  return var
-end
-
-
-function loadsetting2(str4, alt2)
-  local var2
-  if reaper.HasExtState(script_name, str4) then
-    var2 = tonumber(reaper.GetExtState(script_name, str4))
-  else 
-    var2 = alt2
-  end
-  return var2
 end
 
 
@@ -477,42 +457,10 @@ function GenerateFrameColor(t)
   t[4] = t[3]
   t[5] = ShadesOfColor(t[4], -1, -1, -5)
 end
-
-
--- PREDEFINE TABLES AS LOCAL --
-local sel_color = {} 
-local move_tbl = {it = {}, trk_ip = {}}
-local col_tbl = nil
-local pal_tbl = nil
-local cust_tbl = nil
-local sel_tbl = {it = {}, tke = {}, tr = {}, it_tr = {}}
-local custom_palette = {}
-local main_palette
-local palette_high = {main = {}, cust = {}}
-local user_palette = {}
-local auto_track = {auto_pal, auto_palette, auto_retval, auto_custom = loadsetting("auto_custom", false), auto_stable = loadsetting("auto_stable", false)}
-local userpalette = {}
-local user_mainpalette = {}
-local user_theme_factory = {'*CHROMA Classic*', '*Default 7*', '*Grey*', '*Bright*'}
-local user_theme = stringToTable(reaper.GetExtState(script_name, "user_theme")) or {}
-local user_main_settings = {}
-local rv_markers = {} 
-local sel_markers = { retval={}, number={}, m_type={} }
-local combo_items = { '   Track color', ' Custom color' }
-local mouse_item = {mod_flag_t ={}}
-local button_colors = {}
-
-
-local luminance = {
-  colorspace_lum                      = loadsetting2("colorspace_lum", 0),
-  darkness_lum                        = loadsetting2("darkness_lum", 0.100),    
-  lightness_lum                       = loadsetting2("lightness_lum", 0.95),
-  cycle_lum                           = loadsetting("cycle_lum", true),
-  range                               = loadsetting2("colorspace_lum", 0) == 1 and 1 or 0.95            
-  }
   
-
+  
 -- LOADING SETTINGS --
+local custom_palette = {}
 if reaper.HasExtState(script_name, "custom_palette") then
   for i in string.gmatch(reaper.GetExtState(script_name, "custom_palette"), "[^,]+") do 
     insert(custom_palette, tonumber(i))
@@ -524,6 +472,7 @@ if not custom_palette[1] then
   end
 end
 
+local userpalette = {}
 if reaper.HasExtState(script_name, "user_palette") then
   user_palette = stringToTable(reaper.GetExtState(script_name, "user_palette")) 
 else
@@ -531,6 +480,8 @@ else
   SetExtState(script_name , 'userpalette.*Last unsaved*',  table.concat(custom_palette,","),true)
 end
 
+local user_main_settings = {}
+local user_mainpalette = {}
 if reaper.HasExtState(script_name, "user_mainpalette") then
   user_mainpalette = stringToTable(reaper.GetExtState(script_name, "user_mainpalette")) 
 else
@@ -540,24 +491,49 @@ else
   SetExtState(script_name , 'usermainpalette.*Last unsaved*',  table.concat(user_main_settings,","),true)
 end
 
--- CONTROL VARIABLES -- run out of local variables
+
+-- DEFINE AND CREATE TABLES AS LOCAL --
+local main_palette, col_tbl, pal_tbl, cust_tbl
+local sel_color = {} 
+local move_tbl = {it = {}, trk_ip = {}}
+local palette_high = {main = {}, cust = {}}
+local sel_tbl = {it = {}, tke = {}, tr = {}, it_tr = {}}
+local auto_track = {auto_pal, auto_palette, auto_retval, auto_custom = loadsetting("auto_custom", false), auto_stable = loadsetting("auto_stable", false)}
+local user_theme_factory = {'*CHROMA Classic*', '*Default 7*', '*Grey*', '*Bright*'}
+local user_theme = stringToTable(reaper.GetExtState(script_name, "user_theme")) or {}
+local rv_markers = {} 
+local sel_markers = { retval={}, number={}, m_type={} }
+local combo_items = { '   Track color', ' Custom color' }
+local mouse_item = {mod_flag_t ={}}
+local button_colors = {}
+
+local luminance = {
+            colorspace_lum            = loadsetting("colorspace_lum", 0),
+            darkness_lum              = loadsetting("darkness_lum", 0.100),    
+            lightness_lum             = loadsetting("lightness_lum", 0.95),
+            cycle_lum                 = loadsetting("cycle_lum", true),
+            range                     = loadsetting("colorspace_lum", 0) == 1 and 1 or 0.95            
+            }
+
 local pre_cntrl = {
   custom  = {
-            current_item              = loadsetting2("current_item", 1),
+            current_item              = loadsetting("current_item", 1),
             stop                      = loadsetting("stop", true),
             hovered_preset            = ' ',
             user_preset               = user_palette, 
             key                       = #user_palette,
+            found,
             combo_preview_value},
   main    = {
-            current_item              = loadsetting2("current_main_item", 1), 
+            current_item              = loadsetting("current_main_item", 1), 
             stop                      = loadsetting("stop2", true),
             hovered_preset            = ' ',
             user_preset               = user_mainpalette, 
             key                       = #user_mainpalette,
+            found,
             combo_preview_value},
   theme   = {
-            current_item              = loadsetting2("current_theme_item", 1),
+            current_item              = loadsetting("current_theme_item", 1),
             stop                      = loadsetting("stop3", true),
             hovered_preset            = ' ',
             filename_buffer           = "exported_userthemes",
@@ -565,27 +541,27 @@ local pre_cntrl = {
             export                    = {},
             import                    = {data = {}, selected = {}},
             combo_preview_value, user_preset, key},
-  mouse_open_X                        = loadsetting2("mouse_open_X", 0.5),
-  mouse_open_Y                        = loadsetting2("mouse_open_Y", 0.5),
+  mouse_open_X                        = loadsetting("mouse_open_X", 0.5),
+  mouse_open_Y                        = loadsetting("mouse_open_Y", 0.5),
   SelTab                              = 0,
   saved_palette                       = InsertTableValues(8, 0x00),
-  context_index                       = loadsetting2("context_index", 1),
+  context_index                       = loadsetting("context_index", 1),
   context_t                           = {'   current context', '   selected tracks', '   selected items'},
-  backup_color}
+  backup_color,
+  nextitemforeground,
+  nextitemforeground2}
   
-  
-  if pre_cntrl.custom.stop then
-    pre_cntrl.custom.combo_preview_value = user_palette[pre_cntrl.custom.current_item]
-  else
-    pre_cntrl.custom.combo_preview_value = user_palette[pre_cntrl.custom.current_item]..' (modified)'
-  end
-  
-  if pre_cntrl.main.stop then 
-    pre_cntrl.main.combo_preview_value = user_mainpalette[pre_cntrl.main.current_item]
-  else
-    pre_cntrl.main.combo_preview_value = user_mainpalette[pre_cntrl.main.current_item]..' (modified)'
-  end
+if pre_cntrl.custom.stop then
+  pre_cntrl.custom.combo_preview_value = user_palette[pre_cntrl.custom.current_item]
+else
+  pre_cntrl.custom.combo_preview_value = user_palette[pre_cntrl.custom.current_item]..' (modified)'
+end
 
+if pre_cntrl.main.stop then 
+  pre_cntrl.main.combo_preview_value = user_mainpalette[pre_cntrl.main.current_item]
+else
+  pre_cntrl.main.combo_preview_value = user_mainpalette[pre_cntrl.main.current_item]..' (modified)'
+  end
 
 local set_cntrl = {
   tree_node_open                      = loadsetting("tree_node_open_save", false),
@@ -612,8 +588,8 @@ local set_cntrl = {
                                                       {false, false, false }},
                                           x         = {'Left ', 'Center ', 'Right '},
                                           y         = {'- Top', '- Center', '- Bottom'},
-                                          selected  = {s_y = loadsetting2("p_selected_Y", 2),
-                                                       s_x = loadsetting2("p_selected_X", 2)},
+                                          selected  = {s_y = loadsetting("p_selected_Y", 2),
+                                                       s_x = loadsetting("p_selected_X", 2)},
                                           keys      = {1, .5, 0}
                                           }
                                         }
@@ -627,27 +603,27 @@ end
 if set_cntrl.open_at_mouse then set_cntrl.open_at_mouse_true = true end
 
 
--- PREDEFINE VALUES AS LOCAL--
-local items_mode, item_sw, takecolor2, projfn2, h, av_y, sel_mk, set_pos2
+-- DEFINE AND LOAD VARIABLES AS LOCAL--
+local items_mode, item_sw, takecolor2, projfn2, h, sel_mk, set_pos2, max_y2
 local button_text1, button_text2, button_text3, button_text4, button_text5       
-local remainder, init_state_saved, max_x, max_y, go, ImGui_scale2, mouse_over
-local old_project, track_number_stop, tr_cnt_sw, padding_x, padding_y
-local set_pos, takelane_mode2, visible2, nextitemforeground, timer2, sel_tracks2 
+local remainder, init_state_saved, max_x, max_y, go, mouse_over
+local old_project, track_number_stop, tr_cnt_sw
+local set_pos, takelane_mode2, visible2, timer2, sel_tracks2 
 local resize, can_re, counter = 0, "", 0
 local test_take, test_take2, test_track_it, test_item_sw, test_track_sw, sel_items, sel_items_sw, it_cnt_sw, track_sw2
 local check_mark = 0
 local tr_txt = '##No_selection' 
 local shortcut_text = ''
-local automode_id               = loadsetting2("automode_id", 1)
-local static_mode               = loadsetting2("static_mode", 0)
-local colorspace                = loadsetting2("colorspace", 0)
-local lightness                 = loadsetting2("lightness", 0.65)
-local darkness                  = loadsetting2("darkness", 0.2)
-local saturation                = loadsetting2("saturation", 0.8)
-local rgba                      = loadsetting2("rgba", 630132991)
-local rgba3                     = loadsetting2("rgba3", 630132991)
-local last_touched_color        = loadsetting2("last_touched_color", 630132991)
-local selected_mode             = loadsetting2("selected_mode", 0)
+local automode_id               = loadsetting("automode_id", 1)
+local static_mode               = loadsetting("static_mode", 0)
+local colorspace                = loadsetting("colorspace", 0)
+local lightness                 = loadsetting("lightness", 0.65)
+local darkness                  = loadsetting("darkness", 0.2)
+local saturation                = loadsetting("saturation", 0.8)
+local rgba                      = loadsetting("rgba", 630132991)
+local rgba3                     = loadsetting("rgba3", 630132991)
+local last_touched_color        = loadsetting("last_touched_color", 630132991)
+local selected_mode             = loadsetting("selected_mode", 0)
 local show_action_buttons       = loadsetting("show_action_buttons", true)  
 local show_custompalette        = loadsetting("show_custompalette", true)       
 local show_edit                 = loadsetting("show_edit", true)         
@@ -656,7 +632,7 @@ local show_lasttouched          = loadsetting("show_lasttouched", true)
 local show_mainpalette          = loadsetting("show_mainpalette", true)      
 local show_seperators           = loadsetting("show_seperators", true)  
 local auto_trk                  = loadsetting("auto_trk", true)
-local w                         = loadsetting2("w", 777)
+local w                         = loadsetting("w", 777)
 local sides = w/44.671349
 local av_x = w-(sides*2)
 local spacing = max((w*0.002), 1)
@@ -665,14 +641,7 @@ local size2 = (w-sides*2-spacing*23)/24
 
 --local _
 -- go, sys_os, sel_mk could go into bitfield (maybe, maybe not)
-
-if pre_cntrl.context_index == 1 then
-  local mode = reaper.GetCursorContext2(1)
-  if mode == 0 and reaper.GetSelectedTrack(nil,0) then items_mode = 0 elseif mode == 1 and reaper.GetSelectedMediaItem(nil, 0) then items_mode = 1 else items_mode = 2 end
-elseif pre_cntrl.context_index == 2 and reaper.GetSelectedTrack(nil,0) then items_mode = 0
-elseif reaper.GetSelectedMediaItem(nil, 0) then items_mode = 1
-else items_mode = 2
-end
+------------------------------------------------------------------------------
 
 ---- THEME LOADING AND RELATED FUNCTIONS ----
 ----_____________________________________----
@@ -692,16 +661,14 @@ function DefaultColors(key)
         {0x2A5266FF, 0x3F7B99FF, 0x54A4CCFF, 0x3D474D8C, 0xA0C0D8C},
         {0x4D4D4D55, 0xB3991280, 0xB39912FF, 0xB39912FF, 0x1A160380, true, 2, 4, 0xffffffff, {-0.9, -0.4, -0.666}, {0, 0, -0.5}}, 
         {0x4D4D4D55, 0xB3991280, 0xB39912FF, 0xB39912FF, 0x1A160380, false, 2, 4, 0xffffffff, {-0.9, -0.4, -0.666}, {0, 0, -0.5}}, 
-        {0x000000FF, loadsetting2("custombackground_color", 630132991), 0x1b3542ff, 0x1b3542ff, 0x000000ff, loadsetting("background_color_mode", false), loadsetting("background_color_themearrange", false), loadsetting("background_color_custombackground", false)}, -- --[1] = main background, [2] = custombackground, [3] = Checkbox and Combo Background Color, [4] = Title Bg Active Color, [5] = Title Bg Color, [6] = _, 
+        {0x000000FF, loadsetting("custombackground_color", 630132991), 0x1b3542ff, 0x1b3542ff, 0x000000ff, loadsetting("background_color_mode", false), loadsetting("background_color_themearrange", false), loadsetting("background_color_custombackground", false)}, -- --[1] = main background, [2] = custombackground, [3] = Checkbox and Combo Background Color, [4] = Title Bg Active Color, [5] = Title Bg Color, [6] = _, 
         {0xffe8acff, 0xffffffff, 0xffffffff, 0xffffffff}, -- General Headline, General Text, Titlebar Text, ColorEditColor (always white)
         {0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
         {4294967295,1285342719,1465341951,522133503,1886417151,522133503,0x2A5266FF,1065064959,1420086527,1852735616,-1701137536,-960043392,0.07} -- Tabbar Text (unassigned), Tabbar Button Active, Tabbar Button, Tabbar Bg, Scrollbar Handle, Scrollbar Background, ResizeGrip
         }
-                    
   elseif key == 2 then
-    t = {                        
-        {1482712831,-2070898177,-1329541889,1398695679,168496639,true,0.053,0.15,-1,-1528577},
-        {1702266879,-1952204033,-1311773185,1584629728,505818848,true,0.077,0.14,-1},
+    t = {{1482712831,-2070898177,-1329541889,1398695643,168496603,true,0.05,0.15,-1,-1528577},
+        {1684765183,-1902596865,-1194991617,1584629728,505818848,true,0.05,0.14,-1},
         {255,858993663,1717987071,1953789068,454629772,true,0.08,0.15,-1528577,1304756223},
         {1129797631,1787464447,-1833058817,1701803263,370744319,true,1.0,5.0,-1},
         {255,858993663,1717987071,140,140,false,2,5,-1,1202367231},
@@ -710,45 +677,38 @@ function DefaultColors(key)
         {255,858993663,1717987071,876496127,255,true,1.0,5.0,-34751233,1603600383},
         {2139853311,-1396914945,-655493121,2022281612,724842636},
         {53,1633771930,1633772031,1633772031,0,false,1.0,3.0,-1,{-0.064,-0.4,-0.793},{-0.032,0,-0.3965}},
-        {-1835460244,-218163787,-234946305,-234946305,0,false,1.0,3.0,-1,{-0.162,-0.4,-0.577},{-0.081,0,-0.2885}},
-        {858993663,858993663,456475391,859389439,255,false,false,true},
-        {-1528577,-1,-1,4294967295},{0,0,0,0,0},
-        {4294967295,2105376255,168430335,522133503,-1465341697,522133503,1566993151,-1969775105,-1228353281,1852735616,-1701137536,-960043392,0.07} -- Tabbar Text, Tabbar Button Hovered, Tabbar Button, Tabbar Bg
-        }
+        {561273196,752526005,450534655,450534655,0,false,1.0,3.0,-1,{-0.162,-0.4,-0.577},{-0.081,0,-0.2885}},
+        {858993663,858993663,456475391,1027423743,255,false,false,true},{-1528577,-1,-1,4294967295},
+        {0,0,0,0,0},{4294967295,2105376255,168430335,522133503,-1465341697,522133503,1566993151,-1969775105,-1228353281,1852735616,-1701137536,-960043392,0.03}}
   elseif key == 3 then
-    t = {   
-        {1870363135,-1649497089,-874390017,-1448498689,1347177727,true,0.035,0.18,-1,-1197057},
-        {1954254079,-1633107969,-908725505,-1734829825,1060912383,true,0.052,0.212,-1,4293438719},
-        {255,858993663,1717987071,-1347440641,1448169983,true,0.054,0.182,-1197057,1304756223},
-        {1803256319,-1783843585,-1059264513,-1246379521,1549560063,true,2.0,5.0,-1},
-        {-1,-1,-1,-855412,-1500146292,false,2,5,255,1202367231},
+    t = {{1870363135,-1649497089,-874390017,-1448498689,1347177727,true,0.035,0.106,-1,-1197057},
+        {1954254079,-1633107969,-908725505,-1734829825,1060912383,true,0.052,0.107,-1,4293438719},
+        {255,858993663,1717987071,-1347440641,1448169983,true,0.054,0.105,-1197057,1304756223},
+        {1803256319,-1783843585,-1059264513,-1246379521,1549560063,true,2.0,4.0,-1},
+        {-1,-1,-1,-855412,-1500146292,true,2.0,4.0,255,1202367231},
         {808464639,1667458047,-1768515841,808332940,140,false,2,5,4294967295,-1612545},
         {-1802201857,-943208449,-84215041,-825307393,1970237439,true,1.0,5.0,4294967295,1761565183},
-        {1179012863,1953792511,-1566395137,-1128477185,1684305151,true,1.0,5.0,-1,1202367231},
-        {-1260725505,-738197505,-738197505,-1445274996,1568768396},
-        {1130070431,1501211855,1889130751,1889130751,0,false,2.0,5.0,-1,{0.0,-0.343,-0.377},{0.0,-0.1715,-0.1885}},
-        {-1498904929,-858565425,-234946305,-234946305,0,false,1.0,5.0,-1,{-0.799,-0.343,-0.377},{-0.3995,-0.1715,-0.1885}},
+        {993737727,1852731135,-1583242753,-1128477185,1684305151,true,1.0,6.0,-1,1202367231},
+        {2041820415,-1679366145,-1409351681,1890825356,878336908},
+        {1130070400,1501211839,1889130751,1889130751,0,false,1.0,4.0,-1,{0.0,-0.343,-0.5},{0.0,-0.1715,-0.25}},
+        {-1330597633,2059775487,450534655,450534655,0,false,1.0,5.0,255,{-1.0,-0.166,0.0},{-0.5,-0.083,0.0}},
         {-1498698753,-1498698753,456475391,843073279,522136063,false,false,true},
         {-2193665,255,-1,4294967295},{0,0,0,0,0},
-        {4294967295,-673391361,-2121890049,1195459071,-1498698753,471933439,843073279,1450146303,2073931007,1852735616,-1701137536,-960043392,0.07} -- Tabbar Text, Tabbar Button Active, Tabbar Button, Tabbar Bg
-        }
+        {4294967295,-673391361,-2121890049,1195459071,-1498698753,471933439,843073279,1450146303,2073931007,1852735616,-1701137536,-960043392,0.071}}
   elseif key == 4 then
-    t = {                           
-        {-67372033,-1,-1,-168430081,-2139522561,true,0.098,0.18,255,255},
-        {-67372545,-513,-513,-185273089,-1684827137,true,0.096,0.212,255,4293438719},
-        {-68353,-68353,-68353,-1077952513,1717658111,true,0.081,0.177,255,1304756223},
-        {-513,-1025,-1025,-168430121,1448169943,true,2.0,5.0,255},
-        {-1,-1,-1,-1,-1499619841,true,2.0,5.0,255,1202367231},
-        {-1,-1,-1,-855297,-1500146177,true,2.0,5.0,4294967295,761987327},
-        {-1499025665,-320017153,-1,-1,-1499619841,true,1.0,5.0,4294967295,-1627432449},
-        {-1499025665,-673717761,-202113025,-1,-1499619841,true,1.0,5.0,-1,1676208895},
-        {1422313471,1794767615,1828651007,1254541196,594374284},
-        {-1481914369,-1751131649,-2104496897,-2104496897,0,false,2.0,5.0,-1,{-0.29,-0.147,0.0},{-0.145,-0.0735,0.0}},
-        {-134257408,-538976257,-234946305,-234946305,0,false,1.0,4.0,255,{-0.397,0.0,-1.0},{-0.1985,0.0,-0.5}},
-        {-757935361,-757935361,456475391,-1263623425,-1735224833,false,false,true},
+    t = {{-67372324,-292,-292,-168430236,-1667984284,true,0.055,0.18,255,255},
+        {-67372324,-292,-292,-67372444,-1566402204,true,0.055,0.212,255,4293438719},
+        {-67372324,-68353,-68353,-185273244,-1684827292,true,0.055,0.177,255,1304756223},
+        {-67372325,-293,-293,-168430186,-1667984234,true,1.0,5.0,255},
+        {-1,-1,-1,-106,-1499619946,true,1.0,5.0,255,1202367231},
+        {-1,-1,-1,-134506,-1499228778,true,1.0,5.0,4294967295,761987327},
+        {-1499025665,-320017153,-1,-106,-1499619946,true,1.0,5.0,4294967295,-1627432449},
+        {-1,-1,-1,-106,-1499619946,true,1.0,5.0,255,1676208895},{1422313471,1794767615,1828651007,1254541196,594374284},
+        {-1481914369,-1751131649,-2104496897,-2104496897,0,false,1.0,5.0,-1,{-0.29,-0.147,0.0},{-0.145,-0.0735,0.0}},
+        {1910159360,1171958400,450534655,450534655,0,false,1.0,4.0,255,{-0.397,0.0,-1.0},{-0.1985,0.0,-0.5}},
+        {-757935361,-757935361,456475391,-876234753,-1735224833,false,false,true},
         {590079,255,255,4294967295},{0,0,0,0,0},
-        {4294967295,1706739967,-1532713729,-2139062017,-1498698753,471933439,471538687,1330400511,-2105704961,1852735616,-1701137536,-960043392,0.07} -- Tabbar Text, Tabbar Button Active (Col_TabSelected), Tabbar Button, Tabbar Bg
-        }
+        {4294967295,1706739967,-1532713729,-2139062017,-1498698753,471933439,471538687,1330400511,-2105704961,1852735616,-1701137536,-960043392,0.07}}
   end
   return t
 end
@@ -758,10 +718,9 @@ end
 if pre_cntrl.theme.stop then 
   local fact, item = #user_theme_factory, pre_cntrl.theme.current_item
   if item <= fact or not reaper.HasExtState(script_name, 'usertheme.'..tostring(user_theme[item-fact])) then
-    local key = item
-    pre_cntrl.theme.key = key
-    button_colors = DefaultColors(key)
-    pre_cntrl.theme.combo_preview_value = user_theme_factory[key]
+    pre_cntrl.theme.key = item
+    button_colors = DefaultColors(item)
+    pre_cntrl.theme.combo_preview_value = user_theme_factory[item]
     pre_cntrl.theme.user_preset = user_theme_factory 
   else
     local key = item-fact
@@ -830,17 +789,24 @@ end
 
 -- check if color_buttons table's values are valid
 function TableCheck()
+  local check_table = {{1,1,1,1,1,2,1,1.1,1,1},{1,1,1,1,1,2,1,1.1,1},{1,1,1,1,1,2,1,1.1,1,1},{1,1,1,1,1,2,1,1.1,1},{1,1,1,1,1,2,1,1.1,1,1},{1,1,1,1,1,2,1,1.1,1,1},{1,1,1,1,1,2,1,1.1,1,1},
+                    {1,1,1,1,1,2,1,1.1,1,1},{1,1,1,1,1},{1,1,1,1,1,2,1,1,1,{1,1,1},{1,1,1}},{1,1,1,1,1,2,1,1,1,{1,1,1},{1,1,1}},{1,1,1,1,1,2,2,2},{1,1,1,1},{1,1,1,1,1}, {1,1,1,1,1,1,1,1,1,1,1,1,1}}
+                    
   local function IsTableValid(t, t2, t3, non_valid)
     for i = 1, #t do
-      if t[i] == 1 and type(t2[i]) ~= 'number' then
-        t2[i] = t3[i]
-        non_valid = true
-      elseif t[i] == 2 and not type(t2[i]) == 'boolean' then
-        t2[i] = t3[i]
-        non_valid = true
-      elseif type(t[i]) == 'table' then
-        if t2 and type(t2[i]) == 'table' then
-          non_valid, t2[i], t3[i] = IsTableValid(t[i], t2[i], t3[i], non_valid)
+      local spec, val_type = t[i], type(t2[i])
+      local spec_type = type(spec)
+      if spec_type == 'number' then
+        if spec == 1 and val_type ~= 'number' then
+          t2[i] = t3[i]
+          non_valid = true
+        elseif spec == 2 and val_type ~= 'boolean' then
+          t2[i] = t3[i]
+          non_valid = true
+        end
+      elseif spec_type == 'table' then
+        if t2 and val_type == 'table' then
+          non_valid, t2[i] = IsTableValid(spec, t2[i], t3[i], non_valid)
         elseif not t2 then
           t2 = {}
           t2[i] = t3[i]
@@ -851,10 +817,9 @@ function TableCheck()
         end
       end
     end
-    return non_valid, t2, t3
+    return non_valid, t2
   end
-  local check_table = {{1,1,1,1,1,2,1,1.1,1,1},{1,1,1,1,1,2,1,1.1,1},{1,1,1,1,1,2,1,1.1,1,1},{1,1,1,1,1,2,1,1.1,1},{1,1,1,1,1,2,1,1.1,1,1},{1,1,1,1,1,2,1,1.1,1,1},{1,1,1,1,1,2,1,1.1,1,1},
-                    {1,1,1,1,1,2,1,1.1,1,1},{1,1,1,1,1},{1,1,1,1,1,2,1,1,1,{1,1,1},{1,1,1}},{1,1,1,1,1,2,1,1,1,{1,1,1},{1,1,1}},{1,1,1,1,1,2,2,2},{1,1,1,1},{1,1,1,1,1}, {1,1,1,1,1,1,1,1,1,1,1,1,1}}
+  
   local non_valid, checked_t = IsTableValid(check_table, button_colors, DefaultColors(1), false)
   return non_valid, checked_t
 end
@@ -869,29 +834,16 @@ LoadThemeValues()
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 -- IMGUI CONTEXT --
+
 local ctx = ImGui.CreateContext(script_name) 
-local sans_serif = ImGui.CreateFont('sans-serif', font_size)
-local sans_serif2 = ImGui.CreateFont('sans-serif', font_size, ImGui.FontFlags_Bold)
-local buttons_font, buttons_font2, buttons_font3, buttons_font4 
-ImGui.Attach(ctx, sans_serif)
-ImGui.Attach(ctx, sans_serif2)
+local sans_serif2 = ImGui.CreateFont('sans-serif', ImGui.FontFlags_Bold)
+--local buttons_font, buttons_font2, buttons_font3, buttons_font4 
+local want_font_size2, want_font_size3, want_font_size4, w_saved
+local window_flags = ImGui.WindowFlags_NoScrollbar 
 local openSettingWnd = false
+local openAddOnWnd = false
 
-
--- GET HANDLES OF WINDOWS AND INTERCEPT --
-local main = reaper.GetMainHwnd()
-local ruler_win = reaper.JS_Window_FindChildByID(main, 0x3ED)
-local arrange = reaper.JS_Window_FindChildByID(main, 0x3E8)
-local TCPDisplay = reaper.JS_Window_FindEx(main, main, "REAPERTCPDisplay", "" )
-local seen_msgs = {}
-
-reaper.JS_WindowMessage_Intercept(ruler_win, 'WM_LBUTTONDOWN', true)
-reaper.JS_WindowMessage_Intercept(ruler_win, 'WM_LBUTTONUP', true)
-reaper.JS_WindowMessage_Intercept(arrange, 'WM_LBUTTONDOWN', true)
-reaper.JS_WindowMessage_Intercept(arrange, 'WM_LBUTTONUP', true)
-reaper.JS_WindowMessage_Intercept(TCPDisplay, 'WM_LBUTTONDOWN', true)
-
--- CHECK FOR RUN AUTOCOLORING AFTER EXIT SCIPT --
+-- CHECK FOR RUN AUTOCOLORING AFTER EXIT SCRIPT --
 do
   local Automode_script = reaper.NamedCommandLookup("_RS202fa170b3900414fbac3e51b3ff3cb514dabda5")
   local state = reaper.GetToggleCommandState(Automode_script)
@@ -915,6 +867,28 @@ do
       i = i + 1
     until cmd == 0
   end
+end
+
+-- GET HANDLES OF WINDOWS AND INTERCEPT --
+local main = reaper.GetMainHwnd()
+local ruler_win = reaper.JS_Window_FindChildByID(main, 0x3ED)
+local arrange = reaper.JS_Window_FindChildByID(main, 0x3E8)
+local TCPDisplay = reaper.JS_Window_FindEx(main, main, "REAPERTCPDisplay", "" )
+local seen_msgs = {}
+
+reaper.JS_WindowMessage_Intercept(ruler_win, 'WM_LBUTTONDOWN', true)
+reaper.JS_WindowMessage_Intercept(ruler_win, 'WM_LBUTTONUP', true)
+reaper.JS_WindowMessage_Intercept(arrange, 'WM_LBUTTONDOWN', true)
+reaper.JS_WindowMessage_Intercept(arrange, 'WM_LBUTTONUP', true)
+reaper.JS_WindowMessage_Intercept(TCPDisplay, 'WM_LBUTTONDOWN', true)
+
+-- DEFINE CONTEXT FOR STARTUP --
+if pre_cntrl.context_index == 1 then
+  local mode = reaper.GetCursorContext2(1)
+  if mode == 0 and reaper.GetSelectedTrack(nil,0) then items_mode = 0 elseif mode == 1 and reaper.GetSelectedMediaItem(nil, 0) then items_mode = 1 else items_mode = 2 end
+elseif pre_cntrl.context_index == 2 and reaper.GetSelectedTrack(nil,0) then items_mode = 0
+elseif reaper.GetSelectedMediaItem(nil, 0) then items_mode = 1
+else items_mode = 2
 end
 
 
@@ -1031,11 +1005,13 @@ local function get_sel_items_or_tracks_colors(sel_items, sel_tracks, test_item, 
     check_mark = check_mark& ~1
   elseif go and sel_items > 0 and (test_take2 ~= test_take or sel_items ~= it_cnt_sw or test_item_sw ~= test_item) then
     if (static_mode == 0 or static_mode == 2) then
+      palette_high = nil
       palette_high = {main = {}, cust = {}}
     end
     sel_color = {}
     sel_tbl = {it = {}, tke = {}, tr = {}, it_tr = {}}
     move_tbl = {it = {}, trk_ip = {}}
+    collectgarbage("collect")
     local index, tr_index, it_index, sel_index, trk_ip, same_col, itemtrack2, itemtrack = 0, 0, 0, 0
     for i=0, sel_items -1 do
       local itemcolor, different
@@ -1219,7 +1195,7 @@ end
 -- COLOR ITEMS TO TRACK COLOR IN SHINYCOLORS MODE WHEN MOVING --
 local function automatic_item_coloring() 
   local local_ip, cur_state3
-  return function(func_mode, track_sw, track1, init_state)
+  return function(func_mode, track_sw, track1, init_state, undoStr)
     if func_mode == 1 then
       PreventUIRefresh(1)
       for x=1, #move_tbl.it do
@@ -1235,7 +1211,7 @@ local function automatic_item_coloring()
       PreventUIRefresh(-1)
     elseif func_mode == 2 then   -- if more than 60.000 items are selected, change colors after undopoint
       if not cur_state3 then cur_state3 = init_state end
-      if (Undo_CanUndo2(0)=='Move media items')
+      if (undoStr=='Move media items')
             and init_state ~= cur_state3 then
         PreventUIRefresh(1) 
         for x=1, #move_tbl.it do
@@ -1257,7 +1233,7 @@ end
 
 
 -- COLOR TAKES IN SHINYCOLORS MODE --
-local function reselect_take(init_state, sel_items)
+local function reselect_take(init_state, sel_items, undoStr)
   local takelane_mode = reaper.SNM_GetIntConfigVar("projtakelane", 1)
   if takelane_mode ~= takelane_mode2 then
     if (takelane_mode == 1 or takelane_mode == 3) then
@@ -1312,9 +1288,9 @@ local function reselect_take(init_state, sel_items)
   end
   if init_state ~= cur_state 
     and (takelane_mode == 0 or takelane_mode == 2) 
-      and (Undo_CanUndo2(0)=='Change active take'
-        or Undo_CanUndo2(0)=='Previous take'
-          or Undo_CanUndo2(0)=='Next take') then
+      and (undoStr=='Change active take'
+        or undoStr=='Previous take'
+          or undoStr=='Next take') then
     PreventUIRefresh(1)
     for i=0, sel_items -1 do 
       local takecolor = GetMediaItemTakeInfo_Value(sel_tbl.tke[i+1], "I_CUSTOMCOLOR")
@@ -1334,13 +1310,13 @@ end
 
 
 -- COLOR NEW ITEMS AUTOMATICALLY --
-local function Color_new_items_automatically(init_state, sel_items, go, test_item) 
+local function Color_new_items_automatically(init_state, sel_items, go, test_item, undoStr) 
   if go and selected_mode == 1 and automode_id == 1 and test_item ~= test_item_sw then
-    if (Undo_CanUndo2(0)=='Insert new MIDI item'
-      or Undo_CanUndo2(0)=='Insert media items'
-        or Undo_CanUndo2(0)=='Recorded media'
-          or Undo_CanUndo2(0)=='Insert empty item'
-            or Undo_CanUndo2(0)=='Insert click source') then
+    if (undoStr=='Insert new MIDI item'
+      or undoStr=='Insert media items'
+        or undoStr=='Recorded media'
+          or undoStr=='Insert empty item'
+            or undoStr=='Insert click source') then
       PreventUIRefresh(1) 
       for i=0, sel_items -1 do
         local item = GetSelectedMediaItem(0, i)
@@ -1351,8 +1327,8 @@ local function Color_new_items_automatically(init_state, sel_items, go, test_ite
       PreventUIRefresh(-1) 
     end
   elseif go and automode_id == 2 then
-    if (Undo_CanUndo2(0)=='Insert media items'
-        or Undo_CanUndo2(0)=='Recorded media') then
+    if (undoStr=='Insert media items'
+        or undoStr=='Recorded media') then
       PreventUIRefresh(1) 
       for i=0, sel_items -1 do
         local item = GetSelectedMediaItem(0, i)
@@ -1689,7 +1665,6 @@ local function coloring(sel_items, sel_tracks, tbl_tr, tbl_it, mods_retval, colo
         end
         it_cnt_sw = sel_items
         Color_selected_elements_with_gradient(sel_tracks, sel_items, first_color, color_input, 1, nil) 
-        
         stop_gradient, stop_coloring = nil 
         it_cnt_sw = sel_items
         Undo_EndBlock2( 0, "CHROMA: Apply gradient color", 4)
@@ -2242,7 +2217,6 @@ end
 
 function SaveCustomElementButton(ExtSave, Preview, Current, t, func, val, ExtSave2)
   local restore
-  --local retval, retvals_csv = reaper.GetUserInputs('Set a new preset name', 1, 'Enter name:, extrawidth=300', t.user_preset[t.key]) 
   local retval, retvals_csv = reaper.GetUserInputs('Set a new preset name', 1, 'Enter name:, extrawidth=300', string.gsub(t.user_preset[t.key], "^%*(.-)%*$", "%1")) 
   local in_string, out_string = val and t.current_item <=#user_theme_factory and t.user_preset[t.key] or '*Last unsaved*', val and 'FACTORY PRESET' or 'BACKUP FILE'
   if string.gsub(retvals_csv, '^%s*(.-)%s*$', '%1') == string.gsub(in_string, '^%s*(.-)%s*$', '%1') and retval then
@@ -2345,10 +2319,6 @@ end
 
 function LoadElementButton(user_preset, ExtSave, Preview, t, t2, id, val, ExtSave2)
   -- USER PALETTE MENU COMBO BOX --
-  if sys_os == 0 then
-    ImGui.PopStyleVar(ctx)
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 4) 
-  end
   ImGui.PushStyleColor(ctx, ImGui.Col_Button, button_colors[9][1])
   ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, button_colors[9][2])
   ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, button_colors[9][3])
@@ -2370,6 +2340,11 @@ function LoadElementButton(user_preset, ExtSave, Preview, t, t2, id, val, ExtSav
           SetExtState(script_name, ExtSave..'*Last unsaved*', table.concat(t2,","),true)
         end
         t2 = LoadTableFromExtState(t, val, ExtSave)
+        if val then 
+          user_main_settings = t2
+        else
+          custom_palette = t2
+        end
       end
       if ImGui.IsItemHovered(ctx) then
         t.hovered_preset = v
@@ -2381,33 +2356,36 @@ function LoadElementButton(user_preset, ExtSave, Preview, t, t2, id, val, ExtSav
     end
     ImGui.EndCombo(ctx)
   end
+  --[[
   if ImGui.IsWindowHovered(ctx, ImGui.FocusedFlags_ChildWindows) then
     local x, y = reaper.GetMousePosition()
     if ImGui.IsItemHovered(ctx) or combo then
       if combo and t.hovered_preset ~= ' ' and x > 0 then 
         for p, c in utf8.codes(t.hovered_preset) do 
           if c > 255 or string.len(t.hovered_preset) > 30 then 
-            reaper.TrackCtl_SetToolTip( t.hovered_preset, x, y+sys_offset, 0 )
+            reaper.TrackCtl_SetToolTip(t.hovered_preset, x, y+sys_offset, 0 )
             break
           else
-            reaper.TrackCtl_SetToolTip( '', 0, 0, 0 )
+            reaper.TrackCtl_SetToolTip('', 0, 0, 0 )
           end
         end
       elseif x > 0 then
         for p, c in utf8.codes(user_preset[t.current_item]) do 
           if c > 255 or string.len(user_preset[t.current_item]) > 30 then 
-            reaper.TrackCtl_SetToolTip( user_preset[t.current_item], x, y+sys_offset, 0 )
+            reaper.TrackCtl_SetToolTip(user_preset[t.current_item], x, y+sys_offset, 0 )
+            t.found = user_preset
             break
           end
         end
       end
-    else
+    elseif t.found == user_preset then
       reaper.TrackCtl_SetToolTip( '', 0, 0, 0 )
+      t.found = nil
     end
   end
+  --]]
   ImGui.PopStyleColor(ctx, 8)
   ImGui.PopStyleVar(ctx, 2)
-  return t2
 end
 
 
@@ -2426,16 +2404,11 @@ local function PaletteMenu(p_y, p_x, w, h)
   local var, set_x, set_h, change_true, sat_true, contrast_true = 0
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 0) var=var+1
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 5) var=var+1
-  if sys_os == 1 then
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 4) var=var+1
-  else
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 3) var=var+1
-  end
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif)
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 1) var=var+1
+  ImGui.PushFont(ctx, nil, font_size)
   
-  ImGui.SetNextWindowSize(ctx, 236, 730, ImGui.Cond_Appearing) 
-  ImGui.SetNextWindowSizeConstraints(ctx, 236, 200, 250, 730, nil)
+  ImGui.SetNextWindowSize(ctx, 236, 780, ImGui.Cond_Appearing) 
+  ImGui.SetNextWindowSizeConstraints(ctx, 236, 200, 250, 780, nil)
   local set_y = p_y +30
   if set_y < 0 then
     set_y = p_y + h 
@@ -2445,8 +2418,7 @@ local function PaletteMenu(p_y, p_x, w, h)
   if not set_pos then
     ImGui.SetNextWindowPos(ctx, set_x, set_y, ImGui.Cond_Appearing)
   end
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif2)
+  ImGui.PushFont(ctx, sans_serif2, font_size)
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][3]) 
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarSize, 15) var =var+1
   visible2, openSettingWnd = ImGui.Begin(ctx, 'Palette Menu', true, ImGui.WindowFlags_NoCollapse | ImGui.WindowFlags_NoDocking) 
@@ -2459,11 +2431,9 @@ local function PaletteMenu(p_y, p_x, w, h)
     button_action(button_colors[14],'CUSTOM PALETTE:##set', 220, 19, false) 
     ImGui.PopStyleColor(ctx, 1)
     ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
     ImGui.Dummy(ctx, 0, space_btwn)
     button_action(button_colors[14],'Generate Custom Palette:', 220, 19, false) 
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif2)
+    ImGui.PushFont(ctx, sans_serif2, font_size)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[4][9]) 
     if button_action(button_colors[4], 'analogous', 220, 21, true, button_colors[4][7], button_colors[4][8]) then 
       custom_palette_generator(1)
@@ -2482,15 +2452,13 @@ local function PaletteMenu(p_y, p_x, w, h)
     end
     ImGui.PopStyleColor(ctx, 1)
     ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
     ImGui.Dummy(ctx, 0, space_btwn)
     button_action(button_colors[14],'Custom Presets:', 220, 19, true, 0, 0) 
    
     -- SAVING USER CUSTOM PALETTE PRESETS --
     
     -- SAVE BUTTON --
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif2)
+    ImGui.PushFont(ctx, sans_serif2, font_size)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[4][9]) 
     if button_action(button_colors[4], 'Save', 90, 21, true, button_colors[4][7], button_colors[4][8]) then
       SaveCustomElementButton('userpalette.', 'user_palette', 'current_item', pre_cntrl.custom, table.concat(custom_palette,","), nil, 'stop')
@@ -2503,16 +2471,19 @@ local function PaletteMenu(p_y, p_x, w, h)
     end
     ImGui.PopStyleColor(ctx, 1)
     ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
-    custom_palette = LoadElementButton(user_palette, 'userpalette.', 'current_item', pre_cntrl.custom, custom_palette, '##6', nil, 'stop')
-    ImGui.Dummy(ctx, 0, space_btwn)
+    LoadElementButton(user_palette, 'userpalette.', 'current_item', pre_cntrl.custom, custom_palette, '##6', nil, 'stop')
+    ImGui.Dummy(ctx, 0, space_btwn*3)
     
     ChangeGuiFrameColor(6)
-    _, set_cntrl.random_custom = ImGui.Checkbox(ctx, "Random coloring via button##1", set_cntrl.random_custom)
+    _, set_cntrl.random_custom = ImGui.Checkbox(ctx, "##1", set_cntrl.random_custom)
+    ImGui.SameLine(ctx, 0, 6)
+    local text_pos_x, text_pos_y = ImGui.GetCursorPos(ctx)
+    ImGui.SetCursorPos(ctx, text_pos_x, text_pos_y-7)
+    ImGui.Text(ctx, "Random coloring for button:\n'Custom Palette to Elements'")
     ImGui.PopStyleColor(ctx, 4)
     ImGui.PopStyleVar(ctx, 2)
     ImGui.PopStyleVar(ctx)
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 2) 
+    ImGui.Dummy(ctx, 0, space_btwn+1)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[10][9]) 
     if button_action(button_colors[10], 'Reset Custom Palette', 220, 21, true, button_colors[10][7], button_colors[10][8])  then 
       custom_palette, go, cust_tbl, it_cnt_sw, test_track_sw = {}, true
@@ -2525,33 +2496,23 @@ local function PaletteMenu(p_y, p_x, w, h)
     ImGui.PopStyleColor(ctx)
     ImGui.Separator(ctx)
     ImGui.Dummy(ctx, 0, space_btwn)
-    ImGui.PopStyleVar(ctx)
-    if sys_os == 1 then
-      ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 4)
-    else
-      ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 3) 
-    end
     
     -- MAIN PALETTE SETTINGS --
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif2)
+    ImGui.PushFont(ctx, sans_serif2, font_size)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
     button_action(button_colors[14],'MAIN PALETTE:##set', 220, 19, false) 
     ImGui.PopStyleColor(ctx, 1)
     ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
     ImGui.Dummy(ctx, 0, space_btwn)
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 2)
     ImGui.AlignTextToFramePadding(ctx)
     ImGui.Text(ctx, 'Color model:')
     ImGui.SameLine(ctx, 0, 10) 
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif2)
+    ImGui.PushFont(ctx, sans_serif2, font_size)
     ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, button_colors[7][10])
     ChangeGuiFrameColor(7)
     if ImGui.RadioButtonEx(ctx, 'HSL', colorspace, 0) then
       colorspace, lightness, darkness = 0, 0.7, 0.20
-      check_mark, change_true = check_mark|4, true
+      check_mark, change_true = check_mark|(1<<2), true
       SetExtState(script_name ,'colorspace', tostring(colorspace),true)
       SetExtState(script_name ,'lightness', tostring(lightness),true)
       SetExtState(script_name ,'darkness', tostring(darkness),true)
@@ -2567,16 +2528,14 @@ local function PaletteMenu(p_y, p_x, w, h)
     ImGui.SameLine(ctx, 0, 10) 
     if ImGui.RadioButtonEx(ctx, 'HSV', colorspace, 1) then
       colorspace, lightness, darkness = 1, 1, 0.3
-      check_mark, change_true = check_mark|4, true
+      check_mark, change_true = check_mark|(1<<2), true
       SetExtState(script_name ,'colorspace', tostring(colorspace),true)
       SetExtState(script_name ,'lightness', tostring(lightness),true)
       SetExtState(script_name ,'darkness', tostring(darkness),true)
       SetPreviewValueModified(pre_cntrl.main, 'stop2', false)
     end
     ImGui.PopStyleColor(ctx, 5)
-    ImGui.PopStyleVar(ctx, 2)
     ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
     
     if ImGui.IsItemHovered(ctx, ImGui.HoveredFlags_DelayNormal | ImGui.HoveredFlags_NoSharedDelay) and set_cntrl.tooltip_info then
       ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 4)
@@ -2597,7 +2556,8 @@ local function PaletteMenu(p_y, p_x, w, h)
     ChangeGuiFrameColor(8)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[8][9]) 
     ImGui.PushItemWidth(ctx, 220)
-    sat_true, saturation = ImGui.SliderDouble(ctx, '##1', saturation, 0.3, 1.0, '%.3f', ImGui.SliderFlags_None)
+    sat_true, saturation = ImGui.SliderDouble(ctx, '##111', saturation, 0.3, 1.0, '%.3f', ImGui.SliderFlags_None)
+    
     ImGui.PopStyleColor(ctx)
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 2)
     button_action(button_colors[14],'darkness - lightness', 220, 19, false) 
@@ -2606,7 +2566,7 @@ local function PaletteMenu(p_y, p_x, w, h)
     contrast_true ,darkness, lightness = ImGui.SliderDouble2(ctx, '##2', darkness, lightness, 0.12, lightness_range)
     
     if sat_true or contrast_true then
-      check_mark, go, it_cnt_sw, test_track_sw = check_mark|4, true, nil
+      check_mark, go, it_cnt_sw, test_track_sw = check_mark|(1<<2), true, nil
       SetPreviewValueModified(pre_cntrl.main, 'stop2', false)
     end
     ImGui.PopStyleColor(ctx)
@@ -2616,11 +2576,10 @@ local function PaletteMenu(p_y, p_x, w, h)
     -- SAVE BUTTON --
     ImGui.Dummy(ctx, 0, space_btwn)
     button_action(button_colors[14],'Main Presets:', 220, 19, false) 
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif2)
+    ImGui.PushFont(ctx, sans_serif2, font_size)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[4][9]) 
     if button_action(button_colors[4], 'Save##2', 90, 21, true, button_colors[4][7], button_colors[4][8]) then
-      SaveCustomElementButton('usermainpalette.', 'user_mainpalette', 'current_item', pre_cntrl.main, table.concat(user_main_settings,","), nil, 'stop2')
+      SaveCustomElementButton('usermainpalette.', 'user_mainpalette', 'current_main_item', pre_cntrl.main, table.concat(user_main_settings,","), nil, 'stop2')
     end
       
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 5) 
@@ -2633,22 +2592,23 @@ local function PaletteMenu(p_y, p_x, w, h)
     ImGui.PopStyleColor(ctx, 5)
     ImGui.PopStyleVar(ctx, 2)
     ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
-    
-    user_main_settings = LoadElementButton(user_mainpalette, 'usermainpalette.', 'current_main_item', pre_cntrl.main, user_main_settings, '##7', 1, 'stop2')
+
+    LoadElementButton(user_mainpalette, 'usermainpalette.', 'current_main_item', pre_cntrl.main, user_main_settings, '##7', 1, 'stop2')
     ImGui.PopStyleVar(ctx, 1)
-    ImGui.Dummy(ctx, 0, space_btwn)
+    ImGui.Dummy(ctx, 0, space_btwn*3)
     ChangeGuiFrameColor(6)
-    _, set_cntrl.random_main = ImGui.Checkbox(ctx, "Random coloring via button##2", set_cntrl.random_main)
+    _, set_cntrl.random_main = ImGui.Checkbox(ctx, "##2", set_cntrl.random_main)
+    ImGui.SameLine(ctx, 0, 6)
+    local text_pos_x, text_pos_y = ImGui.GetCursorPos(ctx)
+    ImGui.SetCursorPos(ctx, text_pos_x, text_pos_y-7)
+    ImGui.Text(ctx, "Random coloring for button:\n'Main Palette to Elements'")
     ImGui.PopStyleColor(ctx, 4)
     ImGui.PopStyleVar(ctx, 2)
-    ImGui.PopStyleVar(ctx)
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 2) 
-    
+    ImGui.Dummy(ctx, 0, space_btwn+1)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[10][9]) 
     if button_action(button_colors[10], 'Reset Main Palette', 220, 21, true, button_colors[10][7], button_colors[10][8])  then 
       saturation, lightness, darkness, colorspace, set_cntrl.dont_ask = 0.8, 0.65, 0.20, 0, false
-      check_mark, go, it_cnt_sw, test_track_sw = check_mark|4, true, nil
+      check_mark, go, it_cnt_sw, test_track_sw = check_mark|(1<<2), true, nil
       SetExtState(script_name ,'colorspace', tostring(colorspace),true)
       SetExtState(script_name ,'dont_ask', tostring(set_cntrl.dont_ask),true)
       SetExtState(script_name ,'saturation', tostring(saturation),true)
@@ -2658,11 +2618,12 @@ local function PaletteMenu(p_y, p_x, w, h)
     end
     ImGui.PopStyleColor(ctx)
     ImGui.Separator(ctx)
-    ImGui.Dummy(ctx, 0, 6)
+    ImGui.Dummy(ctx, 0, space_btwn)
     -- INFO BUTTON --
     if button_action(button_colors[1], '##Info2', 31, 31, true, 30*button_colors[1][7], 15) then
-      openSettingWnd2, scroll_amount, get_scroll, pre_cntrl.SelTab = true, 0, false, -1
-    end
+      openAddOnWnd, scroll_amount, get_scroll, pre_cntrl.SelTab = true, 0, false, 1
+      check_mark = check_mark|(1<<3)
+    end 
     
     -- INFO DRAWING --
     local pos = {ImGui.GetCursorScreenPos(ctx)}
@@ -2679,7 +2640,6 @@ local function PaletteMenu(p_y, p_x, w, h)
   end
   ImGui.PopStyleVar(ctx, var)
   ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, buttons_font2)
 end
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -2820,13 +2780,11 @@ end
 function ButtonColorsAdjustment3(t, t2, misc_flags, sep_str, define, t3)
   local rv, rv1, rv2, rv3
   ImGui.Dummy(ctx, 0, 10)
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif2)
+  ImGui.PushFont(ctx, sans_serif2, font_size)
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
   ImGui.SeparatorText(ctx, sep_str)
   ImGui.PopStyleColor(ctx, 1)
   ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif)
   for i=1, #t2 do
     rv = ButtonColorAdjuster(t2[i][1], t, t2[i][2], misc_flags, t2[i][3], cnt)
   end
@@ -2846,13 +2804,11 @@ end
 
 function ButtonColorsAdjustment(t, t2, misc_flags, sep_str, define, t3, sl, cnt)
   ImGui.Dummy(ctx, 0, 10)
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif2)
+  ImGui.PushFont(ctx, sans_serif2, font_size)
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
   ImGui.SeparatorText(ctx, sep_str)
   ImGui.PopStyleColor(ctx, 1)
   ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif)
   if sl then
     ButtonColorsAdjustment2(button_colors[9], {{'Arrow Background', 1}}, misc_flags)
   end
@@ -3084,12 +3040,7 @@ end
 function InfoWindow(p_y, p_x, w, h)
   local var, set_x, set_h = 0
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 0, 0) var=var+1
-  --ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 0) var=var+1
-  if sys_os == 1 then
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 4) var=var+1
-  else
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 3) var=var+1
-  end
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 1) var=var+1
   ImGui.SetNextWindowSize(ctx, 400, 690, ImGui.Cond_Appearing) 
   ImGui.SetNextWindowSizeConstraints(ctx, 400, 200, 400, 690, nil)
   local _, _, right, _ = reaper.my_getViewport(0, 0, 0, 0, 0, 0, 0, 0, true)
@@ -3101,12 +3052,12 @@ function InfoWindow(p_y, p_x, w, h)
   if not set_pos2 then
     ImGui.SetNextWindowPos(ctx, set_x, set_y, ImGui.Cond_Appearing)
   end
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif2)
+  
   ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, button_colors[15][4])
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][3]) 
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarSize, 15) var =var+1
-  visible3, openSettingWnd2 = ImGui.Begin(ctx, 'CHROMA Add-Ons', true, ImGui.WindowFlags_NoCollapse | ImGui.WindowFlags_NoDocking) 
+  ImGui.PushFont(ctx, sans_serif2, font_size)
+  visible3, openAddOnWnd = ImGui.Begin(ctx, 'CHROMA Add-Ons', true, ImGui.WindowFlags_NoCollapse | ImGui.WindowFlags_NoDocking) 
   ImGui.PopStyleColor(ctx, 2)
   if visible3 then
     ImGui.PushStyleColor(ctx, ImGui.Col_TabSelected, button_colors[12][1]) 
@@ -3123,8 +3074,6 @@ function InfoWindow(p_y, p_x, w, h)
       else
         TabItem_flags = ImGui.TabItemFlags_None
       end
-      ImGui.PopFont(ctx)
-      ImGui.PushFont(ctx, sans_serif2)
       ImGui.PushStyleColor(ctx, ImGui.Col_ChildBg, button_colors[12][1]) 
       if ImGui.BeginTabItem(ctx, 'Guidance', nil, TabItem_flags) then
         ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 0) 
@@ -3138,11 +3087,9 @@ function InfoWindow(p_y, p_x, w, h)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1]) 
           button_action(button_colors[14],'ALL COLOR BUTTONS:', 360, 19, false) 
           ImGui.Dummy(ctx, 0, 6)
-          
           ImGui.SeparatorText(ctx, '  Selection is the key:  ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.Text(ctx, 'TCP/ARRANGE/RULER/MANAGER Window\ncontext-aware.')
           ImGui.Text(ctx, 'Context Indicator and Action Buttons follow selection.')
@@ -3150,53 +3097,43 @@ function InfoWindow(p_y, p_x, w, h)
           ImGui.Text(ctx, 'Click it to switch between tracks and items.')
           ImGui.Text(ctx, 'Static Context Mode is activated by holding ctrl/cmd\nand clicking Context indicator.')
           ImGui.Dummy(ctx, 0, 8)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
           ImGui.SeparatorText(ctx, "  Drag'n'Drop:  ")
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.Text(ctx, 'Drag colors from all color buttons.')
           ImGui.Text(ctx, 'Drop colors to the Custom Colors Palette\nand the Custom Color Editing Button.')
           ImGui.SeparatorText(ctx, '')
           ImGui.Dummy(ctx, 0, 2)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1]) 
           button_action(button_colors[14],'PALETTE MENU:', 360, 19, false) 
           ImGui.Dummy(ctx, 0, 6)
           ImGui.SeparatorText(ctx, '  Generate Custom Palette:  ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.Text(ctx, 'Drag a color from the Main Palette to the first button\nof the Custom Palette as your base color.')
           ImGui.Text(ctx, 'Click one of the five buttons in the Palette Menu for\nthe desired automatically generated Custom Palette.')
           ImGui.Dummy(ctx, 0, 8)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
           ImGui.SeparatorText(ctx, "  Presets:  ")
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.Text(ctx, 'Save/Load/Delete your Custom Palette Presets.')
           ImGui.SeparatorText(ctx, '')
-          
           ImGui.Dummy(ctx, 0, 2)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1]) 
           button_action(button_colors[14],'GRADIENT COLORING INFO:', 360, 19, false) 
           ImGui.Dummy(ctx, 0, 6)
-          
           ImGui.SeparatorText(ctx, ' Gradient Action Button ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.Text(ctx, '"Color elements to gradient" - action button:')
           ImGui.Dummy(ctx, 0, 2)
@@ -3205,13 +3142,11 @@ function InfoWindow(p_y, p_x, w, h)
           ImGui.Text(ctx, '  hold "SHIFT" and press button for\n  "color elements to gradient shade" action shortcut.')
           ImGui.Text(ctx, '  Rightclick Menu contains additional functions')
           ImGui.Dummy(ctx, 0, 8)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
           ImGui.SeparatorText(ctx, '  Gradient Modifiers ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.Text(ctx, 'Mouse Modifiers for Gradient of any color button:')
           ImGui.Dummy(ctx, 0, 2)
@@ -3221,13 +3156,11 @@ function InfoWindow(p_y, p_x, w, h)
           ImGui.Text(ctx, '  "CTRL/CMD + ALT/OPTION + SHIFT":')
           ImGui.Text(ctx, '    Shortcut for "Set elements to gradient shade"\n    while first element color get set.')
           ImGui.Dummy(ctx, 0, 8)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
           ImGui.SeparatorText(ctx, '  Gradient in Rightclick Menus  ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.Text(ctx, 'Actions in righclick menu of any color button:')
           ImGui.Dummy(ctx, 0, 2)
@@ -3239,15 +3172,13 @@ function InfoWindow(p_y, p_x, w, h)
           
           ImGui.SeparatorText(ctx, '')
           ImGui.Dummy(ctx, 0, 2)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1]) 
           button_action(button_colors[14],'MOUSE MODIFIERS:', 360, 19, false) 
           ImGui.Dummy(ctx, 0, 6)
           ImGui.SeparatorText(ctx, '  Color Buttons  ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.Text(ctx, 'SHIFT:')
           ImGui.Text(ctx, '  Shortcut for coloring any Element with multiple\n  Main/Custom Palette colors by Color Button click.')
@@ -3281,13 +3212,11 @@ function InfoWindow(p_y, p_x, w, h)
           
           ImGui.SeparatorText(ctx, '')
           ImGui.Dummy(ctx, 0, 2)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1]) 
           button_action(button_colors[14],'INFO BAR:', 360, 19, false) 
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           
           ImGui.Text(ctx, 'Tick "Show Mouse Modifier description in Menubar"\nunder settings.')
@@ -3296,27 +3225,23 @@ function InfoWindow(p_y, p_x, w, h)
           
           ImGui.SeparatorText(ctx, '')
           ImGui.Dummy(ctx, 0, 2)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1]) 
           button_action(button_colors[14],'THE TWO MODES:', 360, 19, false) 
           ImGui.Dummy(ctx, 0, 6)
           ImGui.SeparatorText(ctx, '  Normal Mode  ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.Text(ctx, 'Regular coloring:')
           ImGui.Text(ctx, '  we focused on take color for items. Let us know,\n  if it doesn’t fit your preferences or themes.')
           ImGui.Dummy(ctx, 0, 6)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1]) 
           ImGui.Dummy(ctx, 0, 6)
           ImGui.SeparatorText(ctx, '  ShinyColors Mode:  ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.Text(ctx, 'Take color sets the peak, item color sets\nthe much lighter background color.')
           ImGui.Dummy(ctx, 0, 6) 
@@ -3326,19 +3251,18 @@ function InfoWindow(p_y, p_x, w, h)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.SeparatorText(ctx, '')
           ImGui.Dummy(ctx, 0, 2)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1]) 
           button_action(button_colors[14],'ADDITIONAL:', 360, 19, false) 
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ImGui.Dummy(ctx, 0, 6)
           ImGui.Text(ctx, 'Exit the script via "Escape Key".')
           ImGui.SeparatorText(ctx, '')
       
           ImGui.PushItemWidth(ctx, 220)
           ImGui.Dummy(ctx, 0, 6)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.EndChild(ctx)
         end
         ImGui.PopStyleVar(ctx, 2)
@@ -3350,13 +3274,11 @@ function InfoWindow(p_y, p_x, w, h)
       else
         TabItem_flags2 = ImGui.TabItemFlags_None
       end
-      ImGui.PopFont(ctx)
-      ImGui.PushFont(ctx, sans_serif2)
       
       if ImGui.BeginTabItem(ctx, 'Theme', nil, TabItem_flags2) then
         ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 0) 
         ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 8)
-        if ImGui.BeginChild(ctx, 'ChildM', ImGui.GetContentRegionAvail(ctx), select(2, ImGui.GetContentRegionAvail(ctx)), ImGui.ChildFlags_AlwaysUseWindowPadding, window_flags) then
+        if ImGui.BeginChild(ctx, 'ChildM', ImGui.GetContentRegionAvail(ctx), select(2, ImGui.GetContentRegionAvail(ctx)), ImGui.ChildFlags_AlwaysUseWindowPadding, ImGui.WindowFlags_AlwaysVerticalScrollbar) then
           ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
           
           -- SAVING USER CUSTOM PRESETS --
@@ -3376,7 +3298,7 @@ function InfoWindow(p_y, p_x, w, h)
           
           -- USER PALETTE MENU COMBO BOX --
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
+          
           ImGui.PushStyleColor(ctx, ImGui.Col_Button, button_colors[9][1])
           ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, button_colors[9][2])
           ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, button_colors[9][3])
@@ -3388,15 +3310,13 @@ function InfoWindow(p_y, p_x, w, h)
           local combo = ImGui.BeginCombo(ctx, '##8', pre_cntrl.theme.combo_preview_value, ImGui.ComboFlags_HeightLarge)
           if combo then 
             ImGui.PopStyleColor(ctx, 1)
-            ImGui.PopFont(ctx)
-            ImGui.PushFont(ctx, sans_serif2)
+            ImGui.PushFont(ctx, sans_serif2, font_size)
             ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][4]) 
             ImGui.Dummy(ctx, 0, 10)
             ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
             ImGui.SeparatorText(ctx, '  FACTORY PRESETS ')
             ImGui.PopStyleColor(ctx, 1)
             ImGui.PopFont(ctx)
-            ImGui.PushFont(ctx, sans_serif)
             for i,v in ipairs(user_theme_factory) do
               local is_selected = pre_cntrl.theme.current_item == i 
               if ImGui.Selectable(ctx, user_theme_factory[i], is_selected, ImGui.SelectableFlags_None,  300.0,  0.0) then
@@ -3415,23 +3335,23 @@ function InfoWindow(p_y, p_x, w, h)
                 ImGui.SetItemDefaultFocus(ctx)
               end
             end
-            ImGui.PopFont(ctx)
-            ImGui.PushFont(ctx, sans_serif2)
+            ImGui.PushFont(ctx, sans_serif2, font_size)
             ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
             ImGui.SeparatorText(ctx, '  USER PRESETS ')
             ImGui.PopStyleColor(ctx, 1)
             ImGui.PopFont(ctx)
-            ImGui.PushFont(ctx, sans_serif)
             for i,v in ipairs(user_theme) do
               local is_selected = pre_cntrl.theme.current_item == i+#user_theme_factory 
               if ImGui.Selectable(ctx, user_theme[i], is_selected, ImGui.SelectableFlags_None,  300.0,  0.0) then
                 pre_cntrl.theme.current_item, pre_cntrl.theme.key, pre_cntrl.theme.user_preset, pre_cntrl.theme.combo_preview_value, pre_cntrl.theme.stop  = i+#user_theme_factory, i, user_theme,  user_theme[i], true
                 if reaper.HasExtState(script_name, 'usertheme.'..tostring(user_theme[i])) then
+                  SetExtState(script_name ,'current_theme_item', tostring(i+#user_theme_factory),true)
+                  SetExtState(script_name , 'stop3', tostring(true),true)
                   button_colors = {}
                   button_colors = stringToTable(reaper.GetExtState(script_name, 'usertheme.'..tostring(user_theme[i])))
                   non_valid, button_colors = TableCheck()
                   if non_valid then
-                    reaper.ShowMessageBox("Some theme values didn't passed validation and are replaced with default colors.\nPlease make a report on the forum.", 'THEME LOADING ERROR', 0)
+                    reaper.ShowMessageBox("Some theme values didn't passed validation and are replaced with default values.\nPlease make a report on the forum.", 'THEME LOADING ERROR', 0)
                     SetPreviewValueModified(pre_cntrl.theme, 'stop3', false)
                   end
                   LoadThemeValues()
@@ -3453,6 +3373,7 @@ function InfoWindow(p_y, p_x, w, h)
             ImGui.Dummy(ctx, 0, 10)
             ImGui.EndCombo(ctx)
           end
+          --[[
           if ImGui.IsWindowHovered(ctx, ImGui.FocusedFlags_ChildWindows) then
             local x, y = reaper.GetMousePosition()
             if pre_cntrl.theme.current_item > #user_theme_factory and (ImGui.IsItemHovered(ctx) or combo) then
@@ -3477,10 +3398,10 @@ function InfoWindow(p_y, p_x, w, h)
               reaper.TrackCtl_SetToolTip( '', 0, 0, 0 )
             end
           end
+          --]]
           ImGui.PopStyleColor(ctx, 8)
           ImGui.PopStyleVar(ctx, 2)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           if button_action(button_colors[4], "Import", 90, 21, true, button_colors[4][7], button_colors[4][8]) then
              pre_cntrl.theme.load_from_file()
           end
@@ -3491,14 +3412,12 @@ function InfoWindow(p_y, p_x, w, h)
           ImGui.PopStyleColor(ctx)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffffffff)
           if ImGui.BeginPopup(ctx, "ThemePopup") then
-            ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 3, 3) 
             ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 12) 
             ImGui.Dummy(ctx, 0, 0)
             ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, 0x9eff59ff) 
             ImGui.Text(ctx, "Choose Themes:")
             ImGui.SeparatorText(ctx, '')
             ImGui.PopFont(ctx)
-            ImGui.PushFont(ctx, sans_serif)
             local enabled
             for i, name in ipairs(user_theme) do
               local changed, new_val = ImGui.Checkbox(ctx, name, pre_cntrl.theme.selected[i])
@@ -3509,8 +3428,7 @@ function InfoWindow(p_y, p_x, w, h)
             ImGui.Dummy(ctx, 0, 0)
             local changed, new_name = ImGui.InputText(ctx, "Output Filename (.txt)", pre_cntrl.theme.filename_buffer, 256)
             if changed then pre_cntrl.theme.filename_buffer = new_name end
-            ImGui.PopFont(ctx)
-            ImGui.PushFont(ctx, sans_serif2)
+            ImGui.PushFont(ctx, sans_serif2, font_size)
             ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
             if enabled then 
               ImGui.BeginDisabled(ctx, false)
@@ -3526,21 +3444,18 @@ function InfoWindow(p_y, p_x, w, h)
             end
             ImGui.PopStyleColor(ctx)
             ImGui.Dummy(ctx, 0, 10)
-            ImGui.PopStyleVar(ctx, 2)
+            ImGui.PopStyleVar(ctx, 1)
             ImGui.PopStyleColor(ctx)
             ImGui.EndPopup(ctx)
           end
           if ImGui.BeginPopup(ctx, "ImportPopup") then
-            ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 3, 3) 
             ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 12) 
             ImGui.Dummy(ctx, 0, 0)
-            ImGui.PopFont(ctx)
-            ImGui.PushFont(ctx, sans_serif2)
+            ImGui.PushFont(ctx, sans_serif2, font_size)
             ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, 0x9eff59ff) 
             ImGui.Text(ctx, "Select entries to import:")
             ImGui.SeparatorText(ctx, '')
             ImGui.PopFont(ctx)
-            ImGui.PushFont(ctx, sans_serif)
             local enabled
             for i, entry in ipairs(pre_cntrl.theme.import.data) do
               local changed, new_val = ImGui.Checkbox(ctx, entry.key, pre_cntrl.theme.import.selected[i])
@@ -3548,8 +3463,7 @@ function InfoWindow(p_y, p_x, w, h)
               if new_val then enabled = true end
             end
             ImGui.Separator(ctx)
-            ImGui.PopFont(ctx)
-            ImGui.PushFont(ctx, sans_serif2)
+            ImGui.PushFont(ctx, sans_serif2, font_size)
             ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
             if enabled then 
               ImGui.BeginDisabled(ctx, false)
@@ -3567,10 +3481,10 @@ function InfoWindow(p_y, p_x, w, h)
             end
             ImGui.PopStyleColor(ctx)
             ImGui.PopFont(ctx)
-            ImGui.PushFont(ctx, sans_serif)
             ImGui.Dummy(ctx, 0, 10)
-            ImGui.PopStyleVar(ctx, 2)
+            ImGui.PopStyleVar(ctx, 1)
             ImGui.PopStyleColor(ctx)
+            
             ImGui.EndPopup(ctx)
           end
           ImGui.PopStyleColor(ctx, 1)
@@ -3582,7 +3496,6 @@ function InfoWindow(p_y, p_x, w, h)
           ImGui.SeparatorText(ctx, '  SURFACE  ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           local misc_flags = ImGui.ColorEditFlags_NoDragDrop | ImGui.ColorEditFlags_AlphaPreviewHalf 
           ButtonColorAdjuster('General Headline', button_colors[13], 1, misc_flags)
           ButtonColorAdjuster('General Text', button_colors[13], 2, misc_flags)
@@ -3597,9 +3510,11 @@ function InfoWindow(p_y, p_x, w, h)
             button_colors[15][11] = ShadesOfColor(button_colors[15][10], 0, 0.2, 0)
             button_colors[15][12] = ShadesOfColor(button_colors[15][10], 0, 0.4, 0)
           end
-          --ImGui.Dummy(ctx, 0, 10)
           ImGui.Text(ctx, 'Color Button Rounding: (CB.Size*CB.rounding)')
+          ChangeGuiFrameColor(8)
           rv,  button_colors[15][13] = SliderForAdjustment3(button_colors, button_colors[15][13], {0.02, 0.2, '%.3f'}, nil, nil, '##colorbuttonrounding', '')
+          ImGui.PopStyleColor(ctx, 4)
+          ImGui.PopStyleVar(ctx, 2)
           ChangeGuiFrameColor(6)
           BackgroundCheckbox(set_cntrl.background, 1, 6, (ImGui.ColorConvertNative(reaper.GetThemeColor('col_main_bg2', -1))<< 8) | 0xFF, 2, 7, 3, 8, 'Use REAPER theme background color')
           BackgroundCheckbox(set_cntrl.background, 2, 7, (ImGui.ColorConvertNative(reaper.GetThemeColor('col_arrangebg', -1))<< 8) | 0xFF , 1, 6, 3, 8, 'Use "Empty arrange view area" as background color')
@@ -3613,36 +3528,30 @@ function InfoWindow(p_y, p_x, w, h)
             button_colors[12][1] = button_colors[12][2] 
           end
           ImGui.Dummy(ctx, 0, 10)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
           ImGui.SeparatorText(ctx, '  TITLEBAR  ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ButtonColorAdjuster('Titlebar Text', button_colors[13], 3, misc_flags)
           ButtonColorAdjuster('Titlebar Bg Active', button_colors[12], 4, misc_flags)
           ButtonColorAdjuster('Titlebar Bg', button_colors[12], 5, misc_flags)
           ImGui.Dummy(ctx, 0, 10)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
           ImGui.SeparatorText(ctx, '  TABBAR COLORS  ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           --ButtonColorAdjuster('Tabbar Text', button_colors[15], 1, misc_flags)
           ButtonColorAdjuster('Tabbar Button Hovered', button_colors[15], 2, misc_flags)
           ButtonColorAdjuster('Tabbar Button', button_colors[15], 3, misc_flags)
           ButtonColorAdjuster('Tabbar Background', button_colors[15], 4, misc_flags)
           ImGui.Dummy(ctx, 0, 10)
-          ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif2)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
           ImGui.SeparatorText(ctx, '  SCROLLBAR  ')
           ImGui.PopStyleColor(ctx, 1)
           ImGui.PopFont(ctx)
-          ImGui.PushFont(ctx, sans_serif)
           ButtonColorAdjuster('Scrollbar Grab', button_colors[15], 5, misc_flags)
           ButtonColorAdjuster('Scrollbar Background', button_colors[15], 6, misc_flags)
           ButtonColorsAdjustment(button_colors[1], {{'Menu Button Text', 9}, {'Menu Button Gear', 10}, {'Menu Button', 1}}, misc_flags, '  MENU BUTTON  ', 'Menu Button', {{0.0, 0.2, '%.3f'}, {0.0, 0.5, '%.3f'}})
@@ -3656,6 +3565,7 @@ function InfoWindow(p_y, p_x, w, h)
           ButtonColorsAdjustment3(button_colors[10], {{'Reset Button Text', 9, nil}, {'Reset Button', 3, nil}}, misc_flags, '  RESET BUTTON  ', 'Reset button', {{0, 10, '%.0f'}, {0, 10, '%.0f'}, {-1, 0, '%.3f'}})
           ButtonColorsAdjustment3(button_colors[11], {{'Edit Custom Color Button Text', 9, nil}}, misc_flags, '  EDIT CUSTOM COLOR  ', 'Edit Custom Color Button', {{0, 10, '%.0f'}, {0, 10, '%.0f'}, {-1, 0, '%.3f'}})
           ImGui.Dummy(ctx, 0, 10)
+          ImGui.PushFont(ctx, sans_serif2, font_size)
           ImGui.EndChild(ctx)
         end
         
@@ -3676,13 +3586,12 @@ function InfoWindow(p_y, p_x, w, h)
   ImGui.PopStyleColor(ctx, 1)
   ImGui.PopStyleVar(ctx, var)
   ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, buttons_font2)
 end
 
 
 local function SettingsPopUp(size, bttn_height, spacing, fontsize)
-  ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 3, 3) 
-  ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 12) 
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 3, 1) 
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 6) 
   ImGui.Dummy(ctx, 0, 0)
   ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, 0x9eff59ff) 
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
@@ -3690,156 +3599,63 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
   if set_cntrl.tree_node_open then
     ImGui.SetNextItemOpen(ctx, true, ImGui.Cond_Once)
   end
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif2)
+  ImGui.PushFont(ctx, sans_serif2, font_size)
   set_cntrl.tree_node_open = ImGui.TreeNode(ctx, 'SECTIONS (show/hide)')
   ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif)
   if set_cntrl.tree_node_open then -- first treenode --
-    --set_cntrl.tree_node_open_save = true
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffffffff)
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 6)
     if ImGui.Checkbox(ctx, 'Show Custom Palette', show_custompalette) then
-      if show_custompalette then
-        show_custompalette, resize = false, 2
-      else
-        show_custompalette, resize = true, 5
-        if show_seperators then set_cntrl.resize_height = (size+.5)//1+(size*0.2)//1+fontsize
-        elseif show_mainpalette and (not show_lasttouched or not show_edit or not show_luminance_adjuster) then
-          set_cntrl.resize_height = (size+.5)//1+fontsize
-        elseif (show_lasttouched or show_edit) then
-          set_cntrl.resize_height = (size+.5)//1+(size*0.3)//1+(size*0.2)//1+(size*0.1)//1
-        else set_cntrl.resize_height = size*1.2 end
-      end
+      show_custompalette = not show_custompalette
+      resize = resize | (show_custompalette and (1 << 0) or (1 << 1))
     end
     SetExtState(script_name ,'show_custompalette', tostring(show_custompalette),true)
     if ImGui.Checkbox(ctx, 'Show Edit custom color', show_edit) then
-      if show_edit then show_edit, resize = false, 2
-      else show_edit = true
-        if show_seperators then
-          if show_lasttouched or show_luminance_adjuster then set_cntrl.resize_height, resize = 0, 0
-          elseif show_custompalette and not show_mainpalette then
-            set_cntrl.resize_height, resize = (size+.5)//1+(size2*0.3)//1, 9
-          elseif show_custompalette then
-            set_cntrl.resize_height, resize = (size+.5)//1, 9
-          elseif not show_mainpalette and not show_custompalette then
-            set_cntrl.resize_height, resize = (size+.5)//1+(size*0.3)//1, 9
-          else set_cntrl.resize_height, resize = size*1.1, 9 end
-        else
-          if show_lasttouched or show_luminance_adjuster then resize, set_cntrl.resize_height = 0, 0
-          elseif not show_mainpalette and not show_custompalette then
-            set_cntrl.resize_height, resize = (size+.5)//1+(size2*0.3)//1, 9 
-          else
-            if not show_custompalette then resize = 9 else resize = 521 end
-            set_cntrl.resize_height = (size+.5)//1+(size*0.2)//1+(size*0.3)//1+(size*0.2)//1 end
-        end
+      show_edit = not show_edit
+      if show_edit then
+        resize = (show_lasttouched or show_luminance_adjuster)
+          and (resize & ~(1 << 0))
+           or (resize | (1 << 0))
+      else
+        resize = resize | (1 << 1)
       end
       SetExtState(script_name ,'show_edit', tostring(show_edit),true)
     end
     if ImGui.Checkbox(ctx, 'Show Last touched', show_lasttouched) then
+      show_lasttouched = not show_lasttouched
       if show_lasttouched then
-        show_lasttouched, resize = false, 2
+        resize = (show_edit or show_luminance_adjuster)
+          and (resize & ~(1 << 0))
+           or (resize | (1 << 0))
       else
-        show_lasttouched = true
-        if show_seperators then
-          if show_edit or show_luminance_adjuster then set_cntrl.resize_height, resize = 0, 0 
-          elseif show_custompalette and not show_mainpalette then
-            set_cntrl.resize_height, resize  = (size+.5)//1+(size*0.3)//1, 17
-          elseif show_custompalette then
-            set_cntrl.resize_height, resize  = (size+.5)//1, 17
-          elseif not show_mainpalette and not show_custompalette then
-            set_cntrl.resize_height, resize = (size+.5)//1+(size*0.3)//1, 17
-          else set_cntrl.resize_height, resize  = size*1.1, 17  end
-        else
-          if show_edit or show_luminance_adjuster then set_cntrl.resize_height = 0 resize = 0 
-          elseif not show_mainpalette and not show_custompalette then
-            set_cntrl.resize_height, resize = (size+.5)//1+(size*0.3)//1, 17
-          else
-            if not show_custompalette then resize = 17 else resize = 529 end
-            set_cntrl.resize_height = (size+.5)//1+(size*0.3)//1+(size*0.3)//1+(size*0.1)//1 end
-        end
+        resize = resize | (1 << 1)
       end
       SetExtState(script_name ,'show_lasttouched', tostring(show_lasttouched),true)
     end
     if ImGui.Checkbox(ctx, 'Show Luminance Adjuster', show_luminance_adjuster) then
+      show_luminance_adjuster = not show_luminance_adjuster
       if show_luminance_adjuster then
-        show_luminance_adjuster, resize = false, 2
+        resize = (show_edit or show_lasttouched)
+          and (resize & ~(1 << 0))
+           or (resize | (1 << 0))
       else
-        show_luminance_adjuster = true
-        if show_seperators then
-          if show_edit or show_lasttouched then set_cntrl.resize_height, resize = 0, 0 
-          elseif show_custompalette and not show_mainpalette then
-            set_cntrl.resize_height, resize  = (size+.5)//1+(size*0.3)//1, 4097
-          elseif show_custompalette then
-            set_cntrl.resize_height, resize  = (size+.5)//1, 4097
-          elseif not show_mainpalette and not show_custompalette then
-            set_cntrl.resize_height, resize = (size+.5)//1+(size*0.3)//1, 4097
-          else set_cntrl.resize_height, resize  = size*1.1, 4097  end
-        else
-          if show_edit or show_lasttouched then set_cntrl.resize_height = 0 resize = 0 
-          elseif not show_mainpalette and not show_custompalette then
-            set_cntrl.resize_height, resize = (size+.5)//1+(size*0.3)//1, 4097
-          else
-            if not show_custompalette then resize = 4097 else resize = 4609 end
-            set_cntrl.resize_height = (size+.5)//1+(size*0.3)//1+(size*0.3)//1+(size*0.1)//1
-          end
-        end
+        resize = resize | (1 << 1)
       end
       SetExtState(script_name ,'show_luminance_adjuster', tostring(show_luminance_adjuster),true)
     end
     if ImGui.Checkbox(ctx, 'Show Seperators', show_seperators) then
-      if show_seperators then
-        show_seperators, resize = false, 2 
-      else
-        show_seperators, resize = true, 129
-        if show_custompalette and show_mainpalette and (show_lasttouched or show_edit or show_luminance_adjuster) then
-          set_cntrl.resize_height, resize = fontsize*2-math.ceil(size*0.05)-(size*0.3)//1-(size*0.3)//1, 897
-        elseif show_custompalette and show_mainpalette then
-          set_cntrl.resize_height, resize = fontsize+(size*0.2)//1+(size*0.1)//1, 2433 
-        elseif show_custompalette and not show_mainpalette and (show_edit or show_lasttouched or show_luminance_adjuster) then
-          set_cntrl.resize_height, resize = fontsize-math.ceil(size*0.02), 641
-        elseif not show_custompalette and show_mainpalette and (show_edit or show_lasttouched or show_luminance_adjuster) then
-          set_cntrl.resize_height, resize = fontsize-math.ceil(size*0.02)-(size*0.2)//1, 1281
-        elseif not show_custompalette and show_mainpalette and not show_edit and not show_lasttouched and not show_luminance_adjuster then
-          set_cntrl.resize_height, resize = fontsize+(size*0.1)//1, 257
-        elseif not show_custompalette and not show_mainpalette and (show_edit or show_lasttouched or show_luminance_adjuster) then
-          set_cntrl.resize_height, resize = size*0, 0
-        elseif show_custompalette then
-          set_cntrl.resize_height, resize = fontsize+(size*0.3+.5)//1, 129
-        else
-          set_cntrl.resize_height, resize = 0, 129
-        end
-      end
+      show_seperators = not show_seperators
+      resize = resize | (show_seperators and (1 << 0) or (1 << 1))
       SetExtState(script_name ,'show_seperators', tostring(show_seperators),true)
     end
     if ImGui.Checkbox(ctx, 'Show Main Palette', show_mainpalette) then
-      if show_mainpalette then
-        show_mainpalette, resize = false, 2
-      else
-        show_mainpalette = true
-        if show_seperators and not show_lasttouched and not show_edit then
-          set_cntrl.resize_height, resize = ((size+.5)//1)*5+spacing//1*5+fontsize+(size*0.1)//1, 289
-        elseif show_seperators then
-          set_cntrl.resize_height, resize = (size+.5)//1*5+spacing//1*5+(size*0.1)//1+fontsize-math.ceil(size*0.05), 289
-        elseif (show_lasttouched or show_edit or show_luminance_adjuster) and show_custompalette then
-          set_cntrl.resize_height, resize = (size+.5)//1*5+spacing//1*5+(size*0.1)//1, 801
-        elseif show_lasttouched or show_edit or show_luminance_adjuster then
-          set_cntrl.resize_height, resize = (size+.5)//1*5+spacing//1*5+(size*0.1)//1, 289
-        elseif show_custompalette then
-          set_cntrl.resize_height, resize = (size+.5)//1*5+spacing//1*5+fontsize, 289
-        else
-          set_cntrl.resize_height, resize = (size+.5)//1*5+spacing//1*5, 289
-        end
-      end
+      show_mainpalette = not show_mainpalette
+      resize = resize | (show_mainpalette and (1 << 0) or (1 << 1))
       SetExtState(script_name ,'show_mainpalette', tostring(show_mainpalette),true)
     end
-    ImGui.PopStyleVar(ctx, 1)
+
     if ImGui.Checkbox(ctx, 'Show Action buttons', show_action_buttons) then
-      if show_action_buttons then 
-        show_action_buttons, resize = false, 2 
-      else 
-        show_action_buttons, resize, set_cntrl.resize_height = true, 65, bttn_height//1+(size*0.6)//1
-      end
+      show_action_buttons = not show_action_buttons
+      resize = resize | (show_action_buttons and (1 << 0) or (1 << 1))
       SetExtState(script_name ,'show_action_buttons', tostring(show_action_buttons),true)
     end
     ImGui.PopStyleColor(ctx,1)
@@ -3849,45 +3665,34 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
     set_cntrl.tree_node_open_save = set_cntrl.tree_node_open
     SetExtState(script_name ,'tree_node_open_save', tostring(set_cntrl.tree_node_open_save),true)
   end
-  ImGui.Dummy(ctx, 0, 0)
+  ImGui.Dummy(ctx, 0, 6)
   
   -- APEEARANCE SETTINGS SECTION --
   if set_cntrl.tree_node_open3 then
     ImGui.SetNextItemOpen(ctx, true, ImGui.Cond_Once)
   end
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif2)
+  ImGui.PushFont(ctx, sans_serif2, font_size)
   set_cntrl.tree_node_open3 = ImGui.TreeNode(ctx, 'APPEARANCE')
   ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif)
   if set_cntrl.tree_node_open3 then -- first treenode --
     -- APPEARANCE --
     ImGui.AlignTextToFramePadding(ctx)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffffffff)
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 6)
-    ImGui.PopStyleVar(ctx, 1)
     ImGui.Text(ctx, 'Open Theme adjuster:')
     ImGui.SameLine(ctx, 0, 10)
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif2)
+    ImGui.PushFont(ctx, sans_serif2, font_size)
     ImGui.PopStyleColor(ctx)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
     if ImGui.Button(ctx, 'Theme Adjuster', 148, 25) then
-      openSettingWnd2, scroll_amount, get_scroll, pre_cntrl.SelTab = true, 0, false, 2
+      openAddOnWnd, scroll_amount, get_scroll, pre_cntrl.SelTab = true, 0, false, 2
+      check_mark = check_mark|(1<<3)
     end
     ImGui.PopStyleColor(ctx)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffffffff)
     ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)  
     if ImGui.Checkbox(ctx, 'Set GhostMode for Menubar', set_cntrl.topbar_ghost_mode) then
-      if set_cntrl.topbar_ghost_mode then
-        set_cntrl.topbar_ghost_mode = false
-        set_cntrl.resize_height = size+size*0.6
-        resize = 1
-      else
-        set_cntrl.topbar_ghost_mode = true
-        resize = 2
-      end
+      set_cntrl.topbar_ghost_mode = not set_cntrl.topbar_ghost_mode
+      resize = resize | (set_cntrl.topbar_ghost_mode and (1 << 0) or (1 << 1))
       SetExtState(script_name ,'topbar_ghost_mode', tostring(set_cntrl.topbar_ghost_mode),true)
     end
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 4)
@@ -3895,46 +3700,28 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       ImGui.SetTooltip(ctx, '\n Hovering the low part of the titlebar will bring up the Menubar\n\n')
     end
     if ImGui.Checkbox(ctx, 'Show Mouse Modifier description in Menubar', set_cntrl.modifier_info) then
-      if set_cntrl.modifier_info then
-        set_cntrl.modifier_info = false
-      else
-        set_cntrl.modifier_info = true
-      end
+      set_cntrl.modifier_info = not set_cntrl.modifier_info
       SetExtState(script_name ,'modifier_info', tostring(set_cntrl.modifier_info),true)
     end
     if ImGui.IsItemHovered(ctx, ImGui.HoveredFlags_DelayNormal | ImGui.HoveredFlags_NoSharedDelay) and set_cntrl.tooltip_info then
       ImGui.SetTooltip(ctx, '\n Show up infos for buttons with mouse modifiers when hovered\n\n')
     end
     if ImGui.Checkbox(ctx, 'Show Tooltips for some Elements when hovered', set_cntrl.tooltip_info) then
-      if set_cntrl.tooltip_info then
-        set_cntrl.tooltip_info = false
-      else
-        set_cntrl.tooltip_info = true
-      end
+      set_cntrl.tooltip_info = not set_cntrl.tooltip_info
       SetExtState(script_name ,'tooltip_info', tostring(set_cntrl.tooltip_info),true)
     end
     if ImGui.IsItemHovered(ctx, ImGui.HoveredFlags_DelayNormal | ImGui.HoveredFlags_NoSharedDelay) and set_cntrl.tooltip_info  then
       ImGui.SetTooltip(ctx, '\n Not all Elements are in need for extra information\n\n')
     end
     if ImGui.Checkbox(ctx, 'Quit after coloring', set_cntrl.quit) then
-      if set_cntrl.quit then
-        set_cntrl.quit = false
-      else
-        set_cntrl.quit = true
-      end
+      set_cntrl.quit = not set_cntrl.quit
       SetExtState(script_name ,'quit', tostring(set_cntrl.quit),true)
     end
     if ImGui.Checkbox(ctx, 'Open at mouse position:', set_cntrl.open_at_mouse) then
-      if set_cntrl.open_at_mouse then
-        set_cntrl.open_at_mouse = false
-      else
-        set_cntrl.open_at_mouse = true
-      end
+      set_cntrl.open_at_mouse = not set_cntrl.open_at_mouse
       SetExtState(script_name ,'open_at_mouse', tostring(set_cntrl.open_at_mouse),true)
     end
     ImGui.PopStyleColor(ctx,1)
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif2)
     ImGui.PopStyleVar(ctx, 1)
     ImGui.SameLine(ctx, 0, 20)
     if ImGui.BeginPopupContextItem(ctx, '##Settings10') then
@@ -3946,7 +3733,7 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
         if x > 1 then ImGui.SameLine(ctx); end
         ImGui.PushStyleVar(ctx, ImGui.StyleVar_SelectableTextAlign, 0.5, 0.5)
         local row = t.align[y]
-        if ImGui.Selectable(ctx, name, row[x], ImGui.SelectableFlags_DontClosePopups, 116, 40) then
+        if ImGui.Selectable(ctx, name, row[x], ImGui.SelectableFlags_NoAutoClosePopups, 116, 40) then
           local reset = t.align[t.selected.s_y]
           reset[t.selected.s_x] = false
           row[x] = true
@@ -3961,39 +3748,40 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       end
       ImGui.EndPopup(ctx)
     end
+    ImGui.PushFont(ctx, sans_serif2, font_size)
     if ImGui.Button(ctx, 'Alignment', 100, 25) then
       ImGui.OpenPopup(ctx, '##Settings10')
     end
+    ImGui.PopFont(ctx)
     ImGui.TreePop(ctx)
   end
   if set_cntrl.tree_node_open3 ~= set_cntrl.tree_node_open_save3 then
     set_cntrl.tree_node_open_save3 = set_cntrl.tree_node_open3
     SetExtState(script_name ,'tree_node_open_save3', tostring(set_cntrl.tree_node_open_save3),true)
   end
-  ImGui.Dummy(ctx, 0, 0)
+  ImGui.Dummy(ctx, 0, 6)
   -- ADVANCED SETTINGS
   if set_cntrl.tree_node_open2 then
     ImGui.SetNextItemOpen(ctx, true, ImGui.Cond_Once) 
   end
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif2)
+  ImGui.PushFont(ctx, sans_serif2, font_size)
   set_cntrl.tree_node_open2 = ImGui.TreeNode(ctx, 'ADVANCED SETTINGS       ') -- second treenode --
+  ImGui.PopFont(ctx)
   if set_cntrl.tree_node_open2 then
     -- SEPERATOR --
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextBorderSize,3) 
     ImGui.PushStyleVar (ctx, ImGui.StyleVar_SeparatorTextAlign, 0.5, 0.5)
+    ImGui.PushFont(ctx, sans_serif2, font_size)
     ImGui.SeparatorText(ctx, '  Coloring Mode  ')
+    ImGui.PopFont(ctx)
     ImGui.PopStyleVar(ctx, 2)
     ImGui.PopStyleColor(ctx, 1)
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffffffff)
     -- MODE SELECTION --
     ImGui.AlignTextToFramePadding(ctx)
     ImGui.Text(ctx, 'Mode:')
     ImGui.SameLine(ctx, 0, 7)
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 6)
     if  ImGui.RadioButtonEx(ctx, 'Normal', selected_mode, 0) then
       selected_mode = 0
       SetExtState(script_name ,'selected_mode',   tostring(selected_mode),true)
@@ -4043,11 +3831,7 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       ImGui.PopStyleColor(ctx)
       ImGui.SameLine(ctx, 0, 20)
       if ImGui.Checkbox(ctx, " Don't ask me next time", set_cntrl.dont_ask) then
-        if set_cntrl.dont_ask == true then
-          set_cntrl.dont_ask = false
-        else
-          set_cntrl.dont_ask = true
-        end
+        set_cntrl.dont_ask = not set_cntrl.dont_ask
         SetExtState(script_name ,'dont_ask', tostring(set_cntrl.dont_ask),true)
       end
       ImGui.Dummy(ctx, 0, 10)
@@ -4057,15 +3841,13 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
     ImGui.AlignTextToFramePadding(ctx)
     ImGui.Text(ctx, 'How to use ShinyColors Mode:')
     ImGui.SameLine(ctx, 0, 10)
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif2)    
+    ImGui.PushFont(ctx, sans_serif2, font_size)    
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
     if ImGui.Button(ctx, 'PDF', 60, 25) then
       OpenURL('https://drive.google.com/file/d/1fnRfPrMjsfWTdJtjSAny39dWvJTOyni1/view?usp=share_link')
     end
     ImGui.PopStyleColor(ctx)
     ImGui.Dummy(ctx, 0, 0)
-    ImGui.PopStyleVar(ctx, 1)
     
     -- SEPERATOR --
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
@@ -4075,24 +3857,16 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
     ImGui.PopStyleVar(ctx, 2)
     ImGui.PopStyleColor(ctx,1)
     ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
     -- CHECKBOX FOR AUTO TRACK COLORING --
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 6)
     if ImGui.Checkbox(ctx, "Autocolor new tracks", auto_trk) then
-      if auto_trk then
-        auto_trk = false
-        SetExtState(script_name ,'auto_trk', tostring(auto_trk),true)
-      else
-        auto_trk = true
-        SetExtState(script_name ,'auto_trk', tostring(auto_trk),true)
-      end
+      auto_trk = not auto_trk
+      SetExtState(script_name ,'auto_trk', tostring(auto_trk),true)
     end
     if auto_trk then
       ImGui.BeginDisabled(ctx, false)
     else
       ImGui.BeginDisabled(ctx, true)
     end
-    
     ImGui.Dummy(ctx, 0, 0) 
     ImGui.SameLine(ctx, 0.0, 20)
     
@@ -4144,14 +3918,9 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       stable_t = {tr ={ImGui.ColorConvertNative(rgba3 >>8)|0x1000000}, it ={Background_color_rgba(rgba3)}}
     end
     ImGui.EndDisabled(ctx)
-    
-    ImGui.Dummy(ctx, 0, 10)
+
     if ImGui.Checkbox(ctx, "Keep running AutoColor options after exit", set_cntrl.keep_running1) then
-      if set_cntrl.keep_running1 then
-        set_cntrl.keep_running1 = false
-      else
-        set_cntrl.keep_running1 = true
-      end
+      set_cntrl.keep_running1 = not set_cntrl.keep_running1
       SetExtState(script_name ,'keep_running1', tostring(set_cntrl.keep_running1),true)
     end
     
@@ -4168,9 +3937,7 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
     ImGui.PushStyleColor(ctx, ImGui.Col_Border, 1971352575)
     ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg , 522269695)
     ImGui.PushStyleColor(ctx, ImGui.Col_FrameBgHovered, 1381263103)
-    
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif2)
+    ImGui.PushFont(ctx, sans_serif2, font_size)
 
     if ImGui.BeginCombo(ctx, '##context_t', pre_cntrl.context_t[pre_cntrl.context_index], 0) then
       for i=1, #pre_cntrl.context_t do
@@ -4188,17 +3955,14 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
     end
     
     ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
-    
-    ImGui.Dummy(ctx, 0, 10)
+    ImGui.Dummy(ctx, 0, 5)
     ImGui.AlignTextToFramePadding(ctx)
     ImGui.Text(ctx, 'Color new items to:')
     ImGui.PushItemWidth(ctx, 170)
     ImGui.SameLine(ctx, 0.0, 6)
     local auto_coloring_preview_value = combo_items[automode_id]
     
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif2)
+    ImGui.PushFont(ctx, sans_serif2, font_size)
     
     if ImGui.BeginCombo(ctx, '##5', auto_coloring_preview_value, 0) then
       for i=1, #combo_items do
@@ -4215,10 +3979,8 @@ local function SettingsPopUp(size, bttn_height, spacing, fontsize)
       ImGui.EndCombo(ctx)
     end
     ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, sans_serif)
-    ImGui.Dummy(ctx, 0, 0)
+    ImGui.Dummy(ctx, 0, 5)
     ImGui.PopStyleColor(ctx, 3)
-    ImGui.PopStyleVar(ctx, 1)
     ImGui.PopStyleColor(ctx)
     ImGui.TreePop(ctx)
   end
@@ -4249,13 +4011,12 @@ function text_pos(x, z, bol1)
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
   ImGui.Text(ctx, x)
   ImGui.PopStyleColor(ctx, 1)
-  --return k
 end
 
 
 function GradientPopUp(sel_tracks, sel_items, sel_color_patch, sel_color_num, stay_mode, grad, p_y, p_x, w, h, tr_cnt)
   local cntrl_key, alt_key, button_text1, button_text2
-  local width, selectable_flags = true, ImGui.SelectableFlags_DontClosePopups
+  local width, selectable_flags = true, ImGui.SelectableFlags_NoAutoClosePopups
   if sys_os == 1 then cntrl_key, alt_key  = 'CMD', 'OPTION' else cntrl_key, alt_key = 'CTRL', 'ALT' end
   ImGui.Dummy(ctx, 0, 20)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ButtonTextAlign, 0, 0.5)
@@ -4288,7 +4049,8 @@ function GradientPopUp(sel_tracks, sel_items, sel_color_patch, sel_color_num, st
   ImGui.Dummy(ctx, 0, size*0.4)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ButtonTextAlign, 0.5, 0.5)
   if button_action(button_colors[1], '##Info', size*1, size*1, true, size*button_colors[1][7], size*0.5) then
-    openSettingWnd2, scroll_amount, get_scroll, pre_cntrl.SelTab = true, 646, false, 1
+    openAddOnWnd, scroll_amount, get_scroll, pre_cntrl.SelTab = true, 646, false, 1
+    check_mark = check_mark|(1<<3)
   end
   -- INFO DRAWING --
   local pos = {ImGui.GetCursorScreenPos(ctx)}
@@ -4324,26 +4086,18 @@ end
 
 
 function LuminancePopUp(p_y, p_x, w, h, tr_cnt)
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif)
+  ImGui.PushFont(ctx, nil, font_size)
 
-  local selectable_flags = ImGui.SelectableFlags_DontClosePopups
+  local selectable_flags = ImGui.SelectableFlags_NoAutoClosePopups
   ImGui.Dummy(ctx, 0, 20)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ButtonTextAlign, 0, 0.5)
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffffffff)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 6)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ButtonTextAlign, 0.5, 0.5)
-  if sys_os == 1 then
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 4) 
-  else
-    ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 8, 3) 
-  end
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffe8acff)
   button_action(button_colors[14],'Luminance Adjuster Settings:', 220, 19, false) 
   ImGui.PopStyleColor(ctx, 1)
   ImGui.Dummy(ctx, 0, 6)
-  
-  ImGui.AlignTextToFramePadding(ctx)
   ImGui.Text(ctx, 'Color model:')
   ImGui.SameLine(ctx, 0, 10) 
   
@@ -4370,8 +4124,6 @@ function LuminancePopUp(p_y, p_x, w, h, tr_cnt)
     ImGui.SetTooltip(ctx, "\n HSV:\n\n HSVs brightest point is always the pure color itself,\n with darker shades as values go down towards black.\n\n")
     ImGui.PopStyleVar(ctx, 1)
   end
-
-   
   
   ImGui.PushItemWidth(ctx, 220)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, 2)
@@ -4386,7 +4138,7 @@ function LuminancePopUp(p_y, p_x, w, h, tr_cnt)
   ImGui.Dummy(ctx, 0, 6)
   --[[
   if button_action(button_colors[1], '##Info2', 31, 31, true, 4, 15) then
-    openSettingWnd2 = true
+    openAddOnWnd = true
     scroll_amount = 0
     get_scroll = false
   end
@@ -4405,8 +4157,8 @@ function LuminancePopUp(p_y, p_x, w, h, tr_cnt)
   --]]
   ImGui.Dummy(ctx, 0, 20)
   ImGui.PopStyleVar(ctx, 4)
-  ImGui.PopStyleVar(ctx, 1)
   ImGui.PopStyleColor(ctx)
+  ImGui.PopFont(ctx)
 end
 
 
@@ -4414,6 +4166,7 @@ end
 function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current_tbl, which_item, in_table, specific)
   local cntrl_key, alt_key
   if sys_os == 1 then cntrl_key, alt_key  = 'CMD', 'OPTION' else cntrl_key, alt_key = 'CTRL', 'ALT' end
+  ImGui.PushFont(ctx, sans_serif2, want_font_size2)
   ImGui.Dummy(ctx, 0, 20)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ButtonTextAlign, 0, 0.5)
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffffffff)
@@ -4453,7 +4206,7 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
     button_text5 = 'Color tracks to custom palette'
     button_text9 = 'Color tracks to gradient shade'
   end
-  local selectable_flags = ImGui.SelectableFlags_DontClosePopups
+  local selectable_flags = ImGui.SelectableFlags_NoAutoClosePopups
   
   local stay
   if which_item&8 ~= 0 then stay, button_text8 = true, ' (define first)' else stay, button_text8 = false, '' end
@@ -4572,6 +4325,8 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
     end
     local open_popup4 = ImGui.BeginPopup(ctx, 'Choose color#4')
     if open_popup4 then
+      ImGui.PopFont(ctx)
+      ImGui.PushFont(ctx, nil, want_font_size2)
       rgba2, got_color =ColorEditPopup(backup_color, rgba2, custom_palette[pop_key] )
       if got_color then
         auto_track.auto_pal, cust_tbl  = nil
@@ -4582,6 +4337,8 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
         end
         custom_palette[pop_key] = rgba2
       end
+      ImGui.PopFont(ctx)
+      ImGui.PushFont(ctx, sans_serif2, want_font_size2)
     end
     if which_item&32 ~= 0 then
       text_pos("SHIFT+"..alt_key, button_text11, width) 
@@ -4592,10 +4349,7 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
   ImGui.Dummy(ctx, 0, size*0.4)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ButtonTextAlign, 0.5, 0.5)
   if button_action(button_colors[1], '##Info3', size*1, size*1, true, size*button_colors[1][7], size*0.5) then
-    openSettingWnd2 = true
-    scroll_amount = 1413
-    get_scroll = false
-    pre_cntrl.SelTab = 1
+    openAddOnWnd, scroll_amount, get_scroll, pre_cntrl.SelTab, check_mark = true, 1413, false, 1, check_mark|(1<<3)
   end
   
   -- INFO DRAWING --
@@ -4611,6 +4365,7 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
   ImGui.Dummy(ctx, 0, 20)
   ImGui.PopStyleVar(ctx, 2)
   ImGui.PopStyleColor(ctx)
+  ImGui.PopFont(ctx)
 end
 
 
@@ -4984,7 +4739,6 @@ local function GetMarkerUnderMouse(rvs_ret, sys_scale, ui_scale, sel_items)
           -- STORE ALL MARKERS AT MOUSE POSITION IN TABLE --
           if rv_markers.pos[i]-pre_button_offset < mouse_position and rv_markers.pos[i]+post_button_offset > mouse_position then
             tr_txt = 'Marker'
-            --tr_txt_h =  0.663
             check_mark = check_mark|1
             same_pos_t.pos[same_pos_index], same_pos_t.num[same_pos_index], same_pos_index = rv_markers.retval[i], i, same_pos_index+1
           end
@@ -5059,7 +4813,6 @@ local function GetMarkerUnderMouse(rvs_ret, sys_scale, ui_scale, sel_items)
     else
       sel_markers.retval[#sel_markers.retval+1] = same_pos_t.num[#same_pos_t.num]
     end
-    
     -- IF MEASUREMENT IS BUGGY --
     if not sel_markers.retval[1] and reaper.JS_Mouse_GetCursor() ~= reaper.JS_Mouse_LoadCursor(429) then
       sel_markers.retval[#sel_markers.retval+1] = same_pos_t.num[1]
@@ -5104,7 +4857,7 @@ function IsManagerWindowClicked()
     
     if focused_hWnd and (list_hWnd == focused_hWnd or parent_hWnd == focused_hWnd or inputbox_hWnd == focused_hWnd) then -- only if list is focused
       if is_focused_sw == 1 or state_count ~= state_count_sw  then
-        list_item, _ = reaper.JS_ListView_GetFocusedItem(list_hWnd)
+        list_item = reaper.JS_ListView_GetFocusedItem(list_hWnd)
         if list_item ~= list_item_sw then
           had_mouse_input = list_item -- make function output whatever you want
           time = reaper.time_precise() -- make function output whatever you want
@@ -5131,7 +4884,7 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
   local var2 = 0
   
   -- PALETTE MENU --
-  ImGui.PushFont(ctx, buttons_font2)
+  ImGui.PushFont(ctx, sans_serif2 , want_font_size2)
   local fontsize = ImGui.GetFontSize(ctx)
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[1][9]) 
   if button_action(button_colors[1], 'Palette Menu', menu_w, menu_h, true, size*button_colors[1][7], size*button_colors[1][8]) then 
@@ -5139,13 +4892,13 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
     check_mark = check_mark|2
   end
   ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, sans_serif)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_PopupRounding, 4)var2=var2+1
 
   if ImGui.BeginPopupContextItem(ctx, '##Settings3') then
     SettingsPopUp(size, bttn_height, spacing, fontsize)
     ImGui.EndPopup(ctx)
   end 
+  ImGui.PushFont(ctx, sans_serif2, want_font_size2)
 
   -- SETTINGS BUTTON --
   ImGui.SameLine(ctx, 0, size*0.3)
@@ -5166,11 +4919,7 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
   local draw_list = ImGui.GetWindowDrawList(ctx)
   local draw_color = button_colors[1][10]
   local draw_thickness
-  if ImGui.IsItemHovered(ctx) then
-    draw_thickness = size*0.05
-  else
-    draw_thickness = size*0.04
-  end
+  if ImGui.IsItemHovered(ctx) then draw_thickness = size*0.05 else draw_thickness = size*0.04 end
   ImGui.DrawList_AddLine(draw_list, center[1], center[2], center[1]+size*0.15, center[2], draw_color, draw_thickness)
   ImGui.DrawList_AddLine(draw_list, center[1]+size*0.35, center[2], center[1]+size*0.8, center[2], draw_color, draw_thickness)
   ImGui.DrawList_AddLine(draw_list, center[1], center[2]+menu_h*0.3, center[1]+size*0.43, center[2]+menu_h*0.3, draw_color, draw_thickness)
@@ -5181,7 +4930,7 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
   ImGui.PopStyleColor(ctx) 
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][2])
   ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, buttons_font3)
+  ImGui.PushFont(ctx, nil, want_font_size3)
   
   -- MOUSE MODIFIERS DISCRIPTION --
   if not ImGui.IsAnyItemHovered(ctx) then 
@@ -5194,7 +4943,7 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
     ImGui.Text(ctx, shortcut_text)
   end
   ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, buttons_font2)
+  ImGui.PushFont(ctx, sans_serif2, want_font_size2)
   
   -- SELECTION INDICATOR TEXT AND COLOR --
   if items_mode == 0 then 
@@ -5280,13 +5029,9 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
   if selected_mode == 1 then
     ImGui.PushStyleColor(ctx, ImGui.Col_CheckMark, button_colors[7][10])
     ImGui.PushStyleColor(ctx, ImGui.Col_FrameBg , button_colors[7][1])
-    
     ImGui.PushStyleColor(ctx, ImGui.Col_Border, HSV(0.555, 0.1, 0.39, 1)); col2=col2+1
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize,0); var2=var2+1
-    ImGui.PushStyleVar (ctx, ImGui.StyleVar_FramePadding, 0, 0); var2=var2+1
-
     ImGui.PopStyleColor(ctx, 2) 
-
     local font_size = ImGui.GetFontSize(ctx)
     ImGui.SameLine(ctx, -1, av_x-size*3.5+sides-font_size-size*0.4)
     ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)+(menu_h-font_size-size*0.1)*0.5)
@@ -5298,10 +5043,8 @@ local function Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_track
     end
   end
   ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, buttons_font2)
   ImGui.PopStyleVar(ctx, var2) 
   ImGui.PopStyleColor(ctx, col2) 
-  ImGui.PopFont(ctx)
 end
 
 
@@ -5312,13 +5055,13 @@ local function hovered_button(bitfield, mods_retval)
       timer2 = timer
     end
     if timer2+3 > timer then
-      shortcut_text = "Modifiers: Press modifier keys to display functionality"
+      shortcut_text = "Hold a modifier key to view action"
     elseif timer2+6 > timer then
-      shortcut_text = "Use rightclick menu on some widgets and empty area"
+      shortcut_text = "Right-click to open menu"
     else 
       timer2 = nil
     end
-  elseif mods_retval == 4096 and bitfield ~= 0 then
+  elseif mods_retval == 4096 and bitfield ~= 0 and (bitfield & (1 << 7)) == 0 then
     if items_mode == 0 then
       shortcut_text = modifier_text[6]
     elseif items_mode == 1 then
@@ -5326,21 +5069,21 @@ local function hovered_button(bitfield, mods_retval)
     else
       shortcut_text = modifier_text[8]
     end
-  elseif bitfield&1 == 0 and mods_retval == 8192 then
+  elseif (bitfield & (1 << 0)) == 0 and (bitfield & (1 << 7)) == 0 and mods_retval == 8192 then
     shortcut_text = modifier_text[2]
-  elseif bitfield&1 == 1 and mods_retval == 8192 then
+  elseif (bitfield & (1 << 0)) ~= 0  and mods_retval == 8192 then
     shortcut_text = modifier_text[1]
-  elseif bitfield&2 == 2 and mods_retval == 12288 then
+  elseif (bitfield & (1 << 1)) ~= 0  and mods_retval == 12288 then
     shortcut_text = modifier_text[3]
-  elseif bitfield&4 == 4 and mods_retval == 16384 then
+  elseif (bitfield & (1 << 2)) ~= 0  and mods_retval == 16384 then
     shortcut_text = modifier_text[4]
-  elseif bitfield&8 == 8 and mods_retval == 20480 then
+  elseif (bitfield & (1 << 3)) ~= 0  and mods_retval == 20480 then
     shortcut_text = modifier_text[5]
-  elseif bitfield&16 == 16 and mods_retval == 24576 then
+  elseif (bitfield & (1 << 4)) ~= 0 and mods_retval == 24576 then
     shortcut_text = modifier_text[10]
-  elseif bitfield&32 == 32 and mods_retval == 8192 then
+  elseif (bitfield & (1 << 5)) ~= 0  and mods_retval == 8192 then
     shortcut_text = modifier_text[11]
-  elseif bitfield&32 ~= 32 and mods_retval == 28672 then
+  elseif (bitfield & (1 << 6)) ~= 0  and mods_retval == 28672 then
     shortcut_text = modifier_text[11]
   else
     shortcut_text = modifier_text[9]
@@ -5350,6 +5093,7 @@ end
 
 function ColorEditPopup(backup2, color2, ref_col2)
   if not backup2 then backup2 = color2 end
+  ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffffffff)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, size*0.1)
   ImGui.Dummy(ctx, 0, size*0.4)
   got_color, color2 = ImGui.ColorPicker4(ctx, '##Current', color2, ImGui.ColorEditFlags_NoSidePreview | ImGui.ColorEditFlags_NoSmallPreview, color2)
@@ -5366,6 +5110,7 @@ function ColorEditPopup(backup2, color2, ref_col2)
   ImGui.EndGroup(ctx) 
   ImGui.Dummy(ctx, 0, size*0.4)
   ImGui.PopStyleVar(ctx, 1)
+  ImGui.PopStyleColor(ctx, 1)
   ImGui.EndPopup(ctx)
   return color2, got_color
 end
@@ -5411,17 +5156,13 @@ function DrawnItem(m1, m2, m3)
     end
     mouse_item.pos2 = {reaper.GetMousePosition()}
     if m3 ~= (seen_msgs[7] or 0)  and modifier&28 ~= 0  then
-      seen_msgs[6] = m1
-      seen_msgs[7] = m3
+      seen_msgs[6], seen_msgs[7] = m1, m3
       mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
     elseif m2 ~= (seen_msgs[5] or 0) then
-      seen_msgs[6] = m1
-      seen_msgs[5] = m2
-      mouse_item.stop = true
+      seen_msgs[6], seen_msgs[5], mouse_item.stop = m1, m2, true
     end
   elseif m2 ~= (seen_msgs[5] or 0) then
-    seen_msgs[6] = m1
-    seen_msgs[5] = m2
+    seen_msgs[6], seen_msgs[5] = m1, m2
     mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
   elseif (mouse_item.stop or modifier&28 == 0) then
     mouse_item.pressed, mouse_item.pos, mouse_item.pos2, mouse_item.stop, mouse_item.found,  mouse_item.item = nil
@@ -5450,9 +5191,7 @@ function DrawnItem(m1, m2, m3)
         end
         reaper.UpdateItemInProject(mouse_item.item)
         PreventUIRefresh(-1) 
-        mouse_item.found = true
-        mouse_item.stop = true
-        mouse_item.pos, mouse_item.pos2, mouse_item.item = nil
+        mouse_item.found, mouse_item.stop, mouse_item.pos, mouse_item.pos2, mouse_item.item = true, true
       end
     end
   end
@@ -5529,6 +5268,13 @@ local AutoItem = automatic_item_coloring()
 local Color_new_tracks = Color_new_tracks_automatically() 
 
 
+local function ElementTextPos(pos, str, bttn_width, bttn_height, size)
+  local str_dim = ImGui.CalcTextSize(ctx, str, nil, nil, false, -1.0)
+  local txt_x = (bttn_width-str_dim)*0.5+pos[1]
+  local txt_y = pos[2]+(bttn_height*0.5)
+  local draw_list = ImGui.GetWindowDrawList(ctx)
+  ImGui.DrawList_AddText(draw_list, txt_x, txt_y, button_colors[2][9], str)
+end
 
     
 --[[_______________________________________________________________________________
@@ -5537,30 +5283,20 @@ local Color_new_tracks = Color_new_tracks_automatically()
 
 -- THE COLORPALETTE GUI--
 
-local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spacing, sides) 
-  local ImGui_scale = ImGui.GetWindowDpiScale(ctx)
-  if ImGui_scale ~= ImGui_scale2 then
-    sys_scale, ImGui_scale2 = ImGui_scale, ImGui_scale
-  end
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, buttons_font2)
-  local cur_fontsize = ImGui.GetFontSize(ctx)
+local function ColorPalette(init_state, go, w, h, av_x, size, size2, spacing, sides) 
+  local sys_scale = ImGui.GetWindowDpiScale(ctx)
+  
   local p_x, p_y = ImGui.GetWindowPos(ctx)
   local menu_w = (size)*5+spacing*3
-  local menu_w2 = (size2)*5+spacing*3
   local menu_h = (menu_w/6.4+.5)//1
-  local menu_h2 = (menu_w2/6.4+.5)//1
   -- button calculations --
   local divider = 14
   local bttn_gap = max(av_x/(divider*5-1), 1)
   local bttn_width = bttn_gap*(divider-1)
   local bttn_height = bttn_width/5*2
-  local bttn_gap2 = max((w-size*1.2)/(divider*5-1), 1)
-  local bttn_width2 = bttn_gap2*(divider-1)
-  local bttn_height2 = bttn_width2/5*2
   local title_h = select(2, ImGui.GetCursorStartPos(ctx)) + ImGui.GetScrollY(ctx) - select(2, ImGui.GetStyleVar(ctx, ImGui.StyleVar_WindowPadding))
-  local h_calc = title_h
   local mods_retval = ImGui.GetKeyMods(ctx)
+  local undoStr = Undo_CanUndo2(nil)
 
   -- DEFINE "GLOBAL" VARIABLES --
   if go then
@@ -5587,12 +5323,14 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   local _, rvs4, _, win = IsManagerWindow()
     
   -- IF UNDO THEN RESET CACHES --
-  if go
-    and Undo_CanRedo2(0)
-      and (Undo_CanRedo2(0) ~= can_re or reaper.Undo_CanUndo2(0) == Undo_CanRedo2(0))
-        and string.match(Undo_CanRedo2(0), "CHROMA:") then 
+  if go then
+    local redoStr = Undo_CanRedo2(nil)
+    if redoStr
+      and (redoStr ~= can_re or undo_str == redoStr)
+        and string.match(redoStr, "CHROMA:") then 
     it_cnt_sw, test_track_sw, col_tbl = nil
-    can_re = Undo_CanRedo2(0) 
+    can_re = redoStr 
+    end
   end 
   
   -- AUTO TRACK COLORING AND TABLE PATCH DEPENDENT ON SETTINGS --
@@ -5623,7 +5361,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   -- SAVE ALL TRACKS AND THEIR COLORS TO A TABLE --
   if not col_tbl 
     or tr_cnt ~= tr_cnt_sw
-      or Undo_CanUndo2(0)== 'Change track order' then
+      or undoStr == 'Change track order' then
     generate_trackcolor_table(tr_cnt)
     tr_cnt_sw = tr_cnt 
     if sel_tracks < 1 then
@@ -5635,19 +5373,33 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   
   -- BRING PALETTE MENU TO FRONT IF ALREADY OPEN --
   if check_mark&2 ==2 then
-    if openSettingWnd and nextitemforeground then
-      reaper.JS_Window_SetForeground(nextitemforeground)
+    if openSettingWnd and pre_cntrl.nextitemforeground then
+      reaper.JS_Window_SetForeground(pre_cntrl.nextitemforeground)
     else
-      nextitemforeground =reaper.JS_Window_GetForeground()
+      pre_cntrl.nextitemforeground =reaper.JS_Window_GetForeground()
     end
     check_mark = check_mark&~2
   end
-  
   if not openSettingWnd then
-    nextitemforeground = nil
+    pre_cntrl.nextitemforeground = nil
   end
   
-  ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, size2*0.17, size2*frame_paddingY)
+  
+  -- BRING ADD ONS WND TO FRONT IF ALREADY OPEN --
+  if (check_mark & (1 << 3)) ~= 0 then
+    if openAddOnWnd and pre_cntrl.nextitemforeground2 then
+      reaper.JS_Window_SetForeground(pre_cntrl.nextitemforeground2)
+    else
+      pre_cntrl.nextitemforeground2 =reaper.JS_Window_GetForeground()
+    end
+    check_mark = check_mark&~(1 << 3)
+  end
+  if not openAddOnWnd then
+    pre_cntrl.nextitemforeground2 = nil
+  end
+  
+  --ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, size2*0.17, size2*frame_paddingY)
+  ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, 0, 0) -- needed !!
   local var, col = 0, 0
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, size*0); var=var+1 
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, 5); var=var+1 -- for settings menu sliders
@@ -5658,7 +5410,6 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   ImGui.PushStyleColor(ctx, ImGui.Col_BorderShadow, 0x10101050) col= col+1
   
   ImGui.Dummy(ctx, av_x, size*0.6) -- mimic window pad at the top
-  h_calc = (h_calc+size2*0.6)//1
   
   -- PALETTE MENU, SETTINGS POPUP AND INDICATOR --
   if set_cntrl.topbar_ghost_mode then
@@ -5666,18 +5417,15 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     local _, im_mouse_y = ImGui.GetMousePos(ctx)
     local center = {ImGui.Viewport_GetCenter(ImGui.GetWindowViewport(ctx))}
     ImGui.SetNextWindowPos(ctx, center[1], topbar_h, ImGui.Cond_Appearing, 0.5, 0.0)
-    
     if ImGui.BeginPopupContextItem(ctx, '##Settings6') then
       ImGui.Dummy(ctx, av_x, size*0.4)
       Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_tracks, mods_retval, av_x, bttn_height, spacing)
       ImGui.Dummy(ctx, av_x, size*0.4)
-      h_calc = h_calc+menu_h2
       if mouse_over == false and ImGui.IsWindowFocused(ctx, FocusedFlags_None) then 
         ImGui.CloseCurrentPopup(ctx)
       end
       ImGui.EndPopup(ctx)
     end 
-
     if im_mouse_y  <= topbar_h+title_h*0.5 and im_mouse_y  >= topbar_h and ImGui.IsWindowHovered(ctx, HoveredFlags_None) and ImGui.IsWindowFocused(ctx, FocusedFlags_None) then
       mouse_over = true
       ImGui.OpenPopup(ctx, '##Settings6')
@@ -5687,7 +5435,6 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   else
     Topbar(menu_w, menu_h, size, p_y, p_x, w, h, sel_items, sel_tracks, mods_retval, av_x, bttn_height, spacing)
     ImGui.Dummy(ctx, av_x, size*0.5)
-    h_calc = (h_calc+menu_h+size2*0.5)//1
   end
   
   if ImGui.BeginPopup(ctx, '##Settings7') then
@@ -5706,7 +5453,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   end
   
   -- OPEN INFO WINDOW --
-  if openSettingWnd2 then
+  if openAddOnWnd then
     InfoWindow(p_y, p_x, w, h)
   end
 
@@ -5714,21 +5461,21 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   ImGui.PopStyleColor(ctx, col) -- for upper part
 
   -- -- GENERATING TABLES -- --
-  if not main_palette or check_mark&4 == 4 then
+  if not main_palette or check_mark& (1<<2) ~= 0 then
     main_palette = Palette()
     pal_tbl = generate_color_table(pal_tbl, main_palette)
     user_main_settings = {colorspace, saturation, lightness, darkness}
-    check_mark = check_mark&~4
+    check_mark = check_mark&~(1<<2)
   end
-  
+ 
   if not cust_tbl then
     cust_tbl = generate_color_table(cust_tbl, custom_palette)
   end
   
   -- WHEN MARKERS OR REGIONS MOVED --
   if items_mode == 3 and go
-      and (Undo_CanUndo2(0)=='Move marker'
-        or Undo_CanUndo2(0)=='Reorder region') then
+      and (undoStr =='Move marker'
+        or undoStr =='Reorder region') then
     seen_msgs[1] = nil
   end 
   
@@ -5807,7 +5554,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
  
   
   -- CALLING FUNCTIONS -- 
-  Color_new_items_automatically(init_state, sel_items, go, test_item)
+  Color_new_items_automatically(init_state, sel_items, go, test_item, undoStr)
   get_sel_items_or_tracks_colors(sel_items, sel_tracks, test_item, test_take, test_track) 
   
   do
@@ -5816,43 +5563,39 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
         local item_track = GetMediaItemTrack(test_item)
         if item_sw == test_item and track_sw2 ~= item_track then
           local Func_mode = 1
-          AutoItem(Func_mode, track_sw2, item_track)
+          AutoItem(Func_mode, track_sw2, item_track, undoStr)
           track_sw2, item_sw, it_cnt_sw = item_track, test_item, nil
         else
           track_sw2, item_sw = item_track, test_item
         end
       elseif test_item and sel_items > 60000 then -- for safety in extreme situations
         local Func_mode = 2
-        AutoItem(Func_mode, track_sw2, item_track, init_state)
+        AutoItem(Func_mode, track_sw2, item_track, init_state, undoStr)
       end
-      reselect_take(init_state, sel_items, item_track) 
+      reselect_take(init_state, sel_items, item_track, undoStr) 
     end
   end
 
   -- -- ==== MIDDLE PART ==== -- --
   
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, buttons_font2)
+  ImGui.PushFont(ctx, nil, want_font_size2)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, size*button_colors[15][13])    -- general rounding for color widgets
   
   -- CUSTOM COLOR PALETTE --
-  if show_custompalette and resize&4 ~= 4 then
-    h_calc = h_calc+(size2+.5)//1
+  if show_custompalette then
     for m=1, #custom_palette do
       ImGui.PushID(ctx, m)
       if ((m - 1) % 24) ~= 0 then
         ImGui.SameLine(ctx, 0.0, spacing)
       end
       local highlight2 = false
-      local flags =
-                    ImGui.ColorEditFlags_NoPicker |
+      local flags = ImGui.ColorEditFlags_NoPicker |
                     ImGui.ColorEditFlags_NoTooltip
       if palette_high.cust[m] == 1 then
         ImGui.PushStyleColor(ctx, ImGui.Col_Border,0xffffffff)
         ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize, size*0.08)
         highlight2 = true
-      end
-      if highlight2 == false then
+      else
         flags = flags | ImGui.ColorEditFlags_NoBorder
       end
       if ImGui.ColorButton(ctx, '##palette2', custom_palette[m], flags, size, (size+.5)//1) then
@@ -5915,38 +5658,33 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       end
       ImGui.PopID(ctx)
     end
-    if show_seperators and resize&128 ~= 128 then
+    if show_seperators then
       ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
       ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextBorderSize, size*0.1) 
       ImGui.PushStyleVar (ctx, ImGui.StyleVar_SeparatorTextAlign, 1, 0.5)
       ImGui.Dummy(ctx, av_x, (size*0.2)//1)
+      ImGui.PushFont(ctx, sans_serif2, want_font_size2)
       ImGui.SeparatorText(ctx, '  Custom Palette  ')
+      ImGui.PopFont(ctx)
       ImGui.PopStyleVar(ctx, 2)
       ImGui.PopStyleColor(ctx,1)
-      h_calc = h_calc+(size2*0.2)//1+cur_fontsize
     end
   end
-  
+
   
   -- DUMMIES AFTER CUSTOMPALETTE --
-  if resize&2048 == 2048 or (not show_edit and not show_lasttouched and not show_luminance_adjuster and not show_seperators
-      and show_custompalette and show_mainpalette and resize&8 ~= 8
-        and resize&4 ~= 4 and resize&32 ~= 32 and resize&128 ~= 128) then
+  if not show_edit and not show_lasttouched and not show_luminance_adjuster and not show_seperators
+      and show_custompalette and show_mainpalette then
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextBorderSize,size*0.1)
     ImGui.SeparatorText(ctx, '')
     ImGui.PopStyleVar(ctx, 1)
-    h_calc = h_calc+cur_fontsize
-  elseif (not show_seperators and resize&128 ~= 128 and resize&4 ~= 4 and resize&32 ~= 32 and show_custompalette) or resize&512 == 512 then
+  elseif not show_seperators and show_custompalette then
     ImGui.Dummy(ctx, av_x, (size*0.2)//1)
-    h_calc = h_calc+(size2*0.2)//1
   end
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, buttons_font)
   -- CUSTOM COLOR WIDGET --
-  if show_edit and resize&8 ~= 8 then
-    if resize&512 == 512 or show_custompalette and not show_seperators and resize&4 ~= 4 and resize&128 ~= 128 then
+  if show_edit then
+    if show_custompalette and not show_seperators then
       ImGui.Dummy(ctx, av_x, (size*0.3)//1)
-      h_calc = h_calc+(size2*0.3)//1
     end
     -- BORDERCOLOR FOR "EDIT CUSTOM COLOR" AND COLORPICKER --
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[11][9]) 
@@ -5973,7 +5711,10 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     -- APPLY CUSTOM COLOR --
     if ImGui.ColorButton(ctx, 'Apply custom color##3', rgba, ImGui.ColorEditFlags_NoBorder | ImGui.ColorEditFlags_NoTooltip, size, (size+.5)//1) then
       coloring(sel_items, sel_tracks, ImGui.ColorConvertNative(rgba >>8)|0x1000000, Background_color_rgba(rgba), mods_retval, rgba, tr_cnt, -2, 1, 'custom')
-      if mods_retval ~= 20480 then
+      if mods_retval == 20480 then
+        button_colors[11][3] = rgba
+        GenerateFrameColor(button_colors[11])
+      else
         last_touched_color = rgba
       end
       if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Right) and ImGui.IsWindowHovered(ctx) then
@@ -5985,15 +5726,11 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     
     -- MOUSE MODIFIERS INFO FOR EDIT CUSTOM COLOR WIDGET --
     if ImGui.IsItemHovered(ctx) then
-      hovered_button(10, mods_retval)
+      hovered_button(138, mods_retval)
     end
     if ImGui.BeginPopupContextItem(ctx, '##Settings8') then
-      ImGui.PopFont(ctx)
-      ImGui.PushFont(ctx, buttons_font2)
       ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, -2, pal_tbl, 57, nil, 'custom color')
       ImGui.EndPopup(ctx)
-      ImGui.PopFont(ctx)
-      ImGui.PushFont(ctx, buttons_font)
     end 
     
     -- Drag and Drop --
@@ -6007,16 +5744,13 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   end
 
   -- LAST TOUCHED --
-  if show_lasttouched and resize&16 ~= 16  then
+  if show_lasttouched then
     if show_edit then
       ImGui.SameLine(ctx, 0.0, spacing)
-    --elseif show_seperators and show_custompalette and not show_edit and resize&512 ~= 512 and show_mainpalette then
-    elseif resize&512 ~= 512 and not show_mainpalette and (show_custompalette and not show_seperators) then
+    elseif not show_mainpalette and (show_custompalette and not show_seperators) then
       ImGui.Dummy(ctx, av_x, (size*0.3)//1)
-      h_calc = h_calc+(size2*0.3)//1
-    elseif resize&512 == 512 or (show_custompalette and not show_seperators) then
+    elseif show_custompalette and not show_seperators then
       ImGui.Dummy(ctx, av_x, (size*0.3)//1)
-      h_calc = h_calc+(size2*0.3)//1
     end
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 5, 5)
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, 8, 6)
@@ -6028,38 +5762,28 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       coloring(sel_items, sel_tracks, ImGui.ColorConvertNative(last_touched_color >>8)|0x1000000, Background_color_rgba(last_touched_color), mods_retval, last_touched_color, tr_cnt, -1, 1, 'last touched')
       if set_cntrl.quit then set_cntrl.open = true end
     end
-    ImGui.PopStyleColor(ctx,1)
+    ImGui.PopStyleColor(ctx, 1)
     -- MOUSE MODIFIERS INFO FOR CUSTOM PALETTE --
     if ImGui.IsItemHovered(ctx) then
-      hovered_button(10, mods_retval)
+      hovered_button(138, mods_retval)
     end
     ImGui.PopStyleVar(ctx, 3)
     if ImGui.BeginPopupContextItem(ctx, '##Settings9') then
-      ImGui.PopFont(ctx)
-      ImGui.PushFont(ctx, buttons_font2)
       ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, -1, pal_tbl, 57, nil, 'last touched')
       ImGui.EndPopup(ctx)
-      ImGui.PopFont(ctx)
-      ImGui.PushFont(ctx, buttons_font)
     end 
     if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Right) and ImGui.IsWindowHovered(ctx) then
       ImGui.OpenPopup(ctx, '##Settings9')
     end
   end
-  ImGui.PopFont(ctx)
-  ImGui.PushFont(ctx, buttons_font2)
   
-  if show_luminance_adjuster and resize&4096 ~= 4096 then
+  if show_luminance_adjuster then
     if show_edit or show_lasttouched then
       ImGui.SameLine(ctx, 0, size*2.1+spacing*3)
-    elseif resize&512 == 512 or (show_custompalette and not show_seperators) then
+    elseif show_custompalette and not show_seperators then
       ImGui.Dummy(ctx, av_x, (size*0.3)//1)
-      h_calc = h_calc+(size2*0.3)//1
     end
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 5, 5)
-    if not show_edit and not show_lasttouched then
-      h_calc = h_calc+(size2)//1
-    end
     ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx) +(size*0.1))
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[1][9]) 
     if button_action(button_colors[1], '-##Settings14', size*0.8, size*0.8, true, size*button_colors[1][7], size*button_colors[1][8]) then 
@@ -6075,8 +5799,6 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     if ImGui.BeginPopupContextItem(ctx, '##Settings16') then
       LuminancePopUp(p_y, p_x, w, h, tr_cnt)
       ImGui.EndPopup(ctx)
-      ImGui.PopFont(ctx)
-      ImGui.PushFont(ctx, buttons_font2)
     end    
     if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Right) and ImGui.IsWindowHovered(ctx) then
       ImGui.OpenPopup(ctx, '##Settings16')
@@ -6098,7 +5820,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       ImGui.OpenPopup(ctx, '##Settings16')
     end
     ImGui.SameLine(ctx, 0, size*0.2+spacing)
-    if resize&512 == 512 or not (show_edit or show_lasttouched) then
+    if not (show_edit or show_lasttouched) then
       ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx) -(size*0.1))
     end
     ImGui.Dummy(ctx, size, (size+.5)//1)
@@ -6106,41 +5828,35 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
   end
   
   -- OFFSET AND DUMMIES BEFORE MAINPALETTE --
-  if (show_lasttouched or show_edit or show_luminance_adjuster) and resize&8 ~= 8 and resize&16 ~= 16 and resize&4096 ~= 4096 then
+  if show_lasttouched or show_edit or show_luminance_adjuster then
     ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx)-5)
-    h_calc = (h_calc)+(size2+.5)//1
-    if resize&512== 512 or resize&1024 == 1024 or (not show_mainpalette or not show_seperators) and resize&128 ~= 128 then
+    if not show_mainpalette or not show_seperators then
       ImGui.Dummy(ctx, av_x, size*0.3)
-      h_calc = h_calc+(size2*0.3)//1
     end
   end
 
   -- MAIN PALETTE --
-  if show_mainpalette and resize&32 ~= 32 then
-    if show_seperators and resize&256 ~= 256 and resize&512 ~= 512 then
+  if show_mainpalette then
+    if show_seperators then
       ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][1])
       ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextBorderSize, size*0.1)
-      if show_edit or show_lasttouched or show_luminance_adjuster  then
+      if show_edit or show_lasttouched or show_luminance_adjuster then
         ImGui.PushStyleVar (ctx, ImGui.StyleVar_SeparatorTextAlign, 1, 0.5)
         ImGui.SetCursorPosY(ctx, ImGui.GetCursorPosY(ctx) -math.ceil(size*0.05))
-        h_calc = h_calc-math.ceil(size2*0.05)
       else
         ImGui.PushStyleVar (ctx, ImGui.StyleVar_SeparatorTextAlign, 0, 0.5)
       end
-      ImGui.PopFont(ctx)
-      ImGui.PushFont(ctx, buttons_font2)
+      ImGui.PushFont(ctx, sans_serif2, want_font_size2)
       ImGui.SeparatorText(ctx, '  Main Palette  ')
+      ImGui.PopFont(ctx)
       ImGui.PopStyleVar(ctx,2) 
       ImGui.PopStyleColor(ctx, 1)
       ImGui.Dummy(ctx, av_x, (size*0.1)//1)
-      h_calc = h_calc+cur_fontsize+(size2*0.1)//1
-    elseif resize&512 == 512 or (resize&128 ~= 128 and resize&4 ~= 4 and resize&16 ~= 16 and resize&8 ~= 8 and resize&4096 ~= 4096 and (show_edit or show_lasttouched or show_luminance_adjuster)) then
+    elseif show_edit or show_lasttouched or show_luminance_adjuster then
       ImGui.Dummy(ctx, av_x, size*0.1)
-      h_calc = h_calc+(size2*0.1)//1
     end
     ImGui.PopStyleVar(ctx, 1) 
     ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, size*button_colors[15][13])    -- general rounding for color widgets
-    h_calc = h_calc+((size+.5)//1+spacing//1)*5
 
     -- MAIN COLOR PALETTE --
     for n=1, #main_palette do
@@ -6158,8 +5874,7 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
         ImGui.PushStyleColor(ctx, ImGui.Col_Border,0xffffffff)
         ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameBorderSize, size*0.08)
         highlight = true
-      end
-      if highlight == false then
+      else
         palette_button_flags = palette_button_flags | ImGui.ColorEditFlags_NoBorder
       end
       -- MAIN PALETTE BUTTONS --
@@ -6201,65 +5916,54 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       col_tbl = nil
     end
   end
-  
   ImGui.PopStyleVar(ctx,1) 
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextBorderSize,3) 
+  ImGui.PopFont(ctx)
+  ImGui.PushFont(ctx, sans_serif2, want_font_size2)
     
   -- TRIGGER ACTIONS/FUNCTIONS VIA BUTTONS --
-  if show_action_buttons and resize&64 ~= 64 then
-    ImGui.PopFont(ctx)
-    ImGui.PushFont(ctx, buttons_font2)
-
+  if show_action_buttons then
     if w >= 440 then  
-      button_text2 = 'Color children\n    to parent'
+      button_text1 = 'Apply Default\n '
+      button_text2 = 'Parent Color\n '
+      button_text3 = 'Apply Gradient\n '
+      button_text4 = 'Main Palette\n '
+      button_text5 = 'Custom Palette\n '
+      button_text7 = 'to Children'
+      
       if items_mode == 1 then
-        button_text1 = 'Set items to\ndefault color'
-        button_text3 = 'Color items\n to gradient'
-        button_text4 = 'Color items to\n main palette'
-        button_text5 = 'Color items to\ncustom palette'
+        button_text6 = 'to Items'
       elseif items_mode == 3 and sel_mk == 2 then
-        button_text1 = 'Set regions to\n default color'
-        button_text3 = 'Color regions\n  to gradient'
-        button_text4 = ' Color regions\nto main palette'
-        button_text5 = 'Color regions to\n custom palette'
+        button_text6 = 'to Regions'
       elseif items_mode == 3 and sel_mk == 1 then
-        button_text1 = 'Set markers to\n default color'
-        button_text3 = 'Color markers\n  to gradient'
-        button_text4 = 'Color markers\nto main palette'
-        button_text5 = 'Color markers to\n  custom palette'
+        button_text6 = 'to Markers'
       elseif items_mode == 3 then
-        button_text1 = 'Set mk/rgn to\ndefault color'
-        button_text3 = 'Color mk/rgn\n to gradient'
-        button_text4 = ' Color mk/rgn\nto main palette'
-        button_text5 = 'Color mk/rgn to\n custom palette'
+        button_text6 = 'to Mk/Rgn'
       else
-        button_text1 = 'Set tracks to\ndefault color'
-        button_text2 = 'Color children\n    to parent'
-        button_text3 = ' Color tracks\n  to gradient'
-        button_text4 = ' Color tracks to\n  main palette'
-        button_text5 = 'Color tracks to\ncustom palette'
+        button_text6 = 'to Tracks'
       end
     else
-      button_text1 = 'Def. color' 
+      button_text1 = 'Def. Color' 
       button_text2 = 'Children'
-      button_text3 = 'To gradient'
-      button_text4 = 'To main'
-      button_text5 = 'To custom'
+      button_text3 = 'Gradient'
+      button_text4 = 'Main'
+      button_text5 = 'Custom'
+      button_text6 = ''
+      button_text7 = ''
     end
-    
     ImGui.Dummy(ctx, av_x, size*0.6)
-    h_calc = h_calc+(size2*0.6)//1+bttn_height2//1
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[2][9]) 
-    
     if button_action(button_colors[2],  button_text1, bttn_width, bttn_height, true, size*button_colors[2][7], size*button_colors[2][8]) then
       Reset_to_default_color(sel_items, sel_tracks) 
       if set_cntrl.quit then set_cntrl.open = true end
     end
+    ElementTextPos({ImGui.GetItemRectMin(ctx)}, button_text6, bttn_width, bttn_height, size)
     ImGui.SameLine(ctx, 0.0, bttn_gap)
     if button_action(button_colors[2], button_text2, bttn_width, bttn_height, true, size*button_colors[2][7], size*button_colors[2][8]) then 
       color_childs_to_parentcolor(sel_tracks, tr_cnt) 
       if set_cntrl.quit then set_cntrl.open = true end
     end 
+    ElementTextPos({ImGui.GetItemRectMin(ctx)}, button_text7, bttn_width, bttn_height, size)
     ImGui.SameLine(ctx, 0.0, bttn_gap)
     if button_action(button_colors[2], button_text3, bttn_width, bttn_height, true, size*button_colors[2][7], size*button_colors[2][8]) then
       local grad_mode
@@ -6268,24 +5972,28 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
       Color_selected_elements_with_gradient(sel_tracks, sel_items, sel_color[1], sel_color[#sel_color], nil, grad_mode, tr_cnt)
       if set_cntrl.quit then set_cntrl.open = true end
     end
-    -- MOUSE MODIFIERS INFO FOR MAIN PALETTE --
+    -- MOUSE MODIFIERS INFO FOR GRADIENT BUTTON --
     if ImGui.IsItemHovered(ctx) then
       hovered_button(32, mods_retval)
     end
+    ElementTextPos({ImGui.GetItemRectMin(ctx)}, button_text6, bttn_width, bttn_height, size)
     -- RIGHTCLICK MENU --
     if ImGui.BeginPopupContextItem(ctx, '##Settings11') then
       GradientPopUp(sel_tracks, sel_items, sel_color[1], sel_color[#sel_color], nil, grad_mode, p_y, p_x, w, h, tr_cnt)
       ImGui.EndPopup(ctx)
-      ImGui.PopFont(ctx)
-      ImGui.PushFont(ctx, buttons_font2)
     end    
     if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Right) and ImGui.IsWindowHovered(ctx) then
       ImGui.OpenPopup(ctx, '##Settings11')
     end
+    ElementTextPos({ImGui.GetItemRectMin(ctx)}, button_text6, bttn_width, bttn_height, size)
     ImGui.SameLine(ctx, 0.0, bttn_gap)
     if button_action(button_colors[2], button_text4, bttn_width, bttn_height, true, size*button_colors[2][7], size*button_colors[2][8]) then 
       Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, nil, main_palette, nil, set_cntrl.random_main)
       if set_cntrl.quit then set_cntrl.open = true end
+    end
+    -- MOUSE MODIFIERS INFO FOR GRADIENT BUTTON --
+    if ImGui.IsItemHovered(ctx) then
+      hovered_button(128, mods_retval)
     end
     -- RIGHTCLICK MENU --
     if ImGui.BeginPopupContextItem(ctx, '##Settings12') then
@@ -6295,10 +6003,20 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Right) and ImGui.IsWindowHovered(ctx) then
       ImGui.OpenPopup(ctx, '##Settings12')
     end
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 5) 
+    if ImGui.IsItemHovered(ctx, ImGui.HoveredFlags_DelayNormal | ImGui.HoveredFlags_NoSharedDelay) and set_cntrl.tooltip_info then
+      ImGui.SetTooltip(ctx, '\nApply main palette colors to selected elements:\n\n-  Toggle random coloring in right-click menu.\n\n')
+    end
+    ElementTextPos({ImGui.GetItemRectMin(ctx)}, button_text6, bttn_width, bttn_height, size)
+    ImGui.PopStyleVar(ctx, 1)
     ImGui.SameLine(ctx, 0.0, bttn_gap)
     if button_action(button_colors[2], button_text5, bttn_width, bttn_height, true, size*button_colors[2][7], size*button_colors[2][8]) then 
       Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, nil, custom_palette, 1, set_cntrl.random_custom)
       if set_cntrl.quit then set_cntrl.open = true end
+    end
+    -- MOUSE MODIFIERS INFO FOR GRADIENT BUTTON --
+    if ImGui.IsItemHovered(ctx) then
+      hovered_button(128, mods_retval)
     end
     -- RIGHTCLICK MENU --
     if ImGui.BeginPopupContextItem(ctx, '##Settings13') then
@@ -6308,31 +6026,30 @@ local function ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spaci
     if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Right) and ImGui.IsWindowHovered(ctx) then
       ImGui.OpenPopup(ctx, '##Settings13')
     end
+    ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowRounding, 5) 
+    if ImGui.IsItemHovered(ctx, ImGui.HoveredFlags_DelayNormal | ImGui.HoveredFlags_NoSharedDelay) and set_cntrl.tooltip_info then
+      ImGui.SetTooltip(ctx, '\nApply custom palette colors to selected elements:\n\n-  Toggle random coloring in right-click menu.\n\n')
+    end
+    ElementTextPos({ImGui.GetItemRectMin(ctx)}, button_text6, bttn_width, bttn_height, size)
+    ImGui.PopStyleVar(ctx, 1)
     ImGui.PopStyleColor(ctx)
   end
+  max_y2 = ImGui.GetCursorPosY(ctx)
   ImGui.Dummy(ctx, av_x, size*0.9)
-  h_calc = h_calc+(size*0.9)//1
-  
   -- CHECK FOR RESIZE --
   ImGui.SameLine(ctx)
   max_x = ImGui.GetCursorPos(ctx)
   ImGui.NewLine(ctx)
   max_y = ImGui.GetCursorPosY(ctx)
-  if w > (av_x+sides*2+.5)//1 then 
-    if h < h_calc+size*0.3 then
-      ImGui.Dummy(ctx, size*0.4, h_calc-max_y+size*0.3)
-    end
-  end
   ImGui.PopStyleVar(ctx,2)
-  
-  return size
+  ImGui.PopFont(ctx)
 end -- END OF GUI
   
 -----------------------------------
 -----------------------------------
 
 
-local function CollapsedPalette(init_state)
+local function CollapsedPalette(init_state, go)
   -- CHECK FOR PROJECT TAP CHANGE --
   local cur_project, projfn = reaper.EnumProjects( -1 )
   if cur_project ~= old_project or projfn ~= projfn2 then
@@ -6351,6 +6068,7 @@ local function CollapsedPalette(init_state)
   local sel_tracks = CountSelectedTracks(0)
   local test_track = GetSelectedTrack(0, 0)
   local tr_cnt = CountTracks(0)
+  local undoStr = Undo_CanUndo2(nil)
 
   if (sel_tracks == 0 or GetCursorContext2(true) ~= 0) and sel_items > 0 then 
     test_item = GetSelectedMediaItem(0, 0) 
@@ -6391,7 +6109,7 @@ local function CollapsedPalette(init_state)
   
   -- SAVE ALL TRACKS AND THEIR COLORS TO A TABLE --
   if not col_tbl 
-    or ((Undo_CanUndo2(0)=='Change track order')
+    or ((undoStr=='Change track order')
         or  tr_cnt ~= tr_cnt_sw) then
     generate_trackcolor_table(tr_cnt)
     tr_cnt_sw = tr_cnt
@@ -6417,7 +6135,7 @@ local function CollapsedPalette(init_state)
   end
   
   -- CALLING FUNCTIONS --
-  Color_new_items_automatically(init_state, sel_items, go, test_item)
+  Color_new_items_automatically(init_state, sel_items, go, test_item, undoStr)
   get_sel_items_or_tracks_colors(sel_items, sel_tracks,test_item, test_take, test_track)
   
   if selected_mode == 1 then
@@ -6425,16 +6143,16 @@ local function CollapsedPalette(init_state)
       local item_track = GetMediaItemTrack(test_item)
       if item_sw == test_item and track_sw2 ~= item_track then
         local Func_mode = 1
-        AutoItem(Func_mode, track_sw2, item_track)
+        AutoItem(Func_mode, track_sw2, item_track, undoStr)
         track_sw2, item_sw, it_cnt_sw = item_track, test_item, nil
       else
         track_sw2, item_sw = item_track, test_item
       end
     elseif test_item and sel_items > 60000 then
       local Func_mode = 2
-      AutoItem(Func_mode, track_sw2, item_track, init_state)
+      AutoItem(Func_mode, track_sw2, item_track, init_state, undoStr)
     end
-    reselect_take(init_state, sel_items, item_track) 
+    reselect_take(init_state, sel_items, item_track, undoStr) 
   end
 end
 
@@ -6454,7 +6172,7 @@ function save_current_settings()
   SetExtState(script_name ,'lightness_lum',                     tostring(luminance.lightness_lum),true)
   SetExtState(script_name ,'cycle_lum',                         tostring(luminance.cycle_lum),true)
   SetExtState(script_name ,'static_mode',                       tostring(static_mode),true)
-  if pre_cntrl.custom.stop then
+  if not pre_cntrl.theme.stop then
     SetExtState(script_name , 'usertheme.'..'lastunsaved', SerializeThemeTable(button_colors), true )
   end
 end
@@ -6488,7 +6206,7 @@ local function push_style_var(Size, Size2, sides)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowTitleAlign,0.5, 0.5) m=m+1
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_WindowPadding, sides, 0) m=m+1
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ScrollbarSize, Size2*0.5) m=m+1
-  ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, Size*0.17, Size*0.17) m=m+1
+  --ImGui.PushStyleVar(ctx, ImGui.StyleVar_FramePadding, Size*0.17, Size*0.16) m=m+1
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_SeparatorTextPadding, Size*0.5, 0) m=m+1
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_PopupRounding, 4)m=m+1
   return m
@@ -6496,46 +6214,23 @@ end
 
 
 -- LOOP -- MAIN FUNCTION --
-
 local function loop()
-  --local want_font_size = max((av_x/font_divider2)//1, 10)
-  local want_font_size2 = max((av_x/font_divider2)//1, 2)
-  local want_font_size3 = (av_x/font_divider3)//1
-  local want_font_size4 = max(((w-sides*2)/font_divider2)//1, 2)
-
-  if want_font_size2 ~= saved_font_size then
-    
-    if buttons_font then ImGui.Detach(ctx, buttons_font) end
-    if buttons_font2 then ImGui.Detach(ctx, buttons_font2) end
-    if buttons_font3 then ImGui.Detach(ctx, buttons_font3) end
-    if buttons_font4 then ImGui.Detach(ctx, buttons_font4) end
-    buttons_font = ImGui.CreateFont('sans-serif', want_font_size2)
-    buttons_font2 = ImGui.CreateFont('sans-serif', want_font_size2, ImGui.FontFlags_Bold)
-    buttons_font3 = ImGui.CreateFont('sans-serif', want_font_size3) --Infobar
-    buttons_font4 = ImGui.CreateFont('sans-serif', want_font_size4, ImGui.FontFlags_Bold)
-    saved_font_size = want_font_size2
-    ImGui.Attach(ctx, buttons_font)
-    ImGui.Attach(ctx, buttons_font2)
-    ImGui.Attach(ctx, buttons_font3)
-    ImGui.Attach(ctx, buttons_font4)
+  if w ~= w_saved then
+    want_font_size2 = max((av_x/font_divider2)//1, 2)
+    want_font_size3 = (av_x/font_divider3)//1
+    want_font_size4 = max(((w-sides*2)/font_divider2)//1, 2)
+    w_saved = w
   end
-  ImGui.PushFont(ctx, buttons_font4)
-  local window_flags = ImGui.WindowFlags_None 
   local style_color_n = push_style_color()
-  ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][3]) 
   local style_var_m = push_style_var(size, size2, sides)
-  
   ImGui.SetNextWindowSize(ctx, 777, 429, ImGui.Cond_FirstUseEver)
-  padding_x, padding_y = ImGui.GetStyleVar(ctx, ImGui.StyleVar_WindowPadding)
   local mouse_released = ImGui.IsMouseReleased(ctx, ImGui.MouseButton_Left)
-  
   if resize&1 ~= 0 then
-    resize = 2
-    ImGui.SetNextWindowSize(ctx, max_x+padding_x+1, max_y+set_cntrl.resize_height)
-  elseif (mouse_released or (resize and resize&2 == 2)) and h > max_y and (w+.5)//1==(av_x+padding_x*2+.5)//1 then
-    ImGui.SetNextWindowSize(ctx, max_x+padding_x+1, max_y)
+    resize = (resize | (1 << 1)) & ~(1 << 0)
+    ImGui.SetNextWindowSize(ctx, max_x+sides+1, max_y)
+  elseif (mouse_released or (resize and resize&2 ~= 0)) and h > max_y and (w+.5)//1==(av_x+sides*2+.5)//1 then
+    ImGui.SetNextWindowSize(ctx, max_x+sides+1, max_y)
   end
-  
   ImGui.SetNextWindowSizeConstraints(ctx, 328, 50, 3000, 2000, nil)
   if set_cntrl.open_at_mouse_true then
     local m_x, m_y = ImGui.PointConvertNative(ctx, reaper.GetMousePosition())
@@ -6543,36 +6238,40 @@ local function loop()
     set_cntrl.open_at_mouse_true = false
     m_x, m_y = nil
   end
-
+  ImGui.PushFont(ctx, nil, font_size)
+  ImGui.PushFont(ctx, sans_serif2, want_font_size4)
+  ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][3]) 
   ImGui.PushStyleColor(ctx, ImGui.Col_Button, button_colors[15][7]) 
   ImGui.PushStyleColor(ctx, ImGui.Col_ButtonHovered, button_colors[15][8])
   ImGui.PushStyleColor(ctx, ImGui.Col_ButtonActive, button_colors[15][9]) 
   local visible, open = ImGui.Begin(ctx, 'Chroma - Coloring Tool', true, window_flags)
+  ImGui.PopFont(ctx)
   ImGui.PopStyleColor(ctx, 4)
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][2]) 
   local init_state = GetProjectStateChangeCount(0)
-  
-  if init_state ~= init_state_saved then
-    go = true
-    init_state_saved = init_state
-  else
-    go = false
-  end
-  
+  go = init_state ~= init_state_saved
+  init_state_saved = init_state
   if visible then
     w, h = ImGui.GetWindowSize(ctx)
-    av_x, av_y = ImGui.GetContentRegionAvail(ctx)
-    local spacing = max((w*0.002), 1)
-    size = (av_x-spacing*23)/24
     sides = w/44.671349
+    local spacing = max((w*0.002), 1)
     size2 = (w-sides*2-spacing*23)/24
-
-    ColorPalette(init_state, go, w, h, av_x, av_y, size, size2, spacing, sides) 
+    if max_y2 and max_y2-sides*0.8 > h then
+      av_x = w-sides*2-size2*0.5
+    else
+      av_x= ImGui.GetContentRegionAvail(ctx)
+    end
+    size = (av_x-spacing*23)/24
+    if max_y2 and max_y2-sides*0.8 > h then
+      window_flags = ImGui.WindowFlags_AlwaysVerticalScrollbar
+    elseif max_y2 and max_y2 < h then
+      window_flags = ImGui.WindowFlags_NoScrollbar 
+    end
+    ColorPalette(init_state, go, w, h, av_x, size, size2, spacing, sides) 
     ImGui.End(ctx)
   else
-    CollapsedPalette(init_state, nil, go)
+    CollapsedPalette(init_state, go)
   end
-
   ImGui.PopFont(ctx)
   ImGui.PopStyleColor(ctx, style_color_n)
   ImGui.PopStyleVar(ctx, style_var_m)
@@ -6609,4 +6308,3 @@ reaper.atexit(function()
       reaper.Main_OnCommand(set_cntrl.keep_running2, 0)
     end
   end)
-  
