@@ -1,9 +1,13 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.9.2
+--  @version 0.9.2.1
 --  @date 25.08.23
 --
 --  @changelog
+--    0.9.2.1
+--    Bug fixes: 
+--    - fix loading color table on first use ever (what a shame!)
+--
 --    0.9.2
 --    Compatibility:
 --    - needs ReaImGui 0.10
@@ -473,6 +477,7 @@ if not custom_palette[1] then
 end
 
 local userpalette = {}
+local user_palette = {}
 if reaper.HasExtState(script_name, "user_palette") then
   user_palette = stringToTable(reaper.GetExtState(script_name, "user_palette")) 
 else
@@ -5285,7 +5290,6 @@ end
 
 local function ColorPalette(init_state, go, w, h, av_x, size, size2, spacing, sides) 
   local sys_scale = ImGui.GetWindowDpiScale(ctx)
-  
   local p_x, p_y = ImGui.GetWindowPos(ctx)
   local menu_w = (size)*5+spacing*3
   local menu_h = (menu_w/6.4+.5)//1
