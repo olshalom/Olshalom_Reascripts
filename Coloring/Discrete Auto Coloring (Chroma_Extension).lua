@@ -711,7 +711,9 @@ return function(sel_tracks, test_track, state, tr_cnt)
         end
       end
     end
-    state2 = state2 +1
+    if state2 then
+      state2 = state2 +1
+    end
     track_number_sw, sel_tracks2, col_tbl, found = tr_cnt, nil, nil, nil
     Undo_EndBlock2(0, "CHROMA: Automatically color new tracks", 1+4)
   end
