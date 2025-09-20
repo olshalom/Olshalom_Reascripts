@@ -1,20 +1,21 @@
 --  @description Discrete Auto Coloring (Chroma_Exntension)
 --  @author olshalom, vitalker
---  @version 0.6
---  @date 25.08.24
+--  @version 0.7
+--  @date 25.09.20
 --  @changelog
+--    0.7
+--      Bugfixes:
+--      - if autocoloring for tracks is activated, check if a track has already a color
+--      - fix autocoloring for new added/recorded items in ShinyColorsMode
+
 --    0.6
 --      Update:
---      - uodate to latest auto coloring functions
+--      - update to latest auto coloring functions
 
---  @version 0.5
---  @date 25.06.19
---  @changelog
 --    0.5
 --      Bug fixes: 
 --        > fixed bug with draw new item in ShinyColorsMode
 
---  @changelog
 --    0.4
 --      Bug fixes: 
 --        > fixed crash when item not valid
@@ -137,14 +138,6 @@ local ImGui = {
   ColorConvertDouble4ToU32 = reaper.ImGui_ColorConvertDouble4ToU32,
   ColorConvertNative = reaper.ImGui_ColorConvertNative
   }
-
-
-local function SetButtonState(set)
-  local is_new_value, filename, sec, cmd, mode, resolution, val = reaper.get_action_context()
-  reaper.SetToggleCommandState(sec, cmd, set or 0)
-  reaper.RefreshToolbar2(sec, cmd)
-end
-
 
 
 -- GET HANDLES OF WINDOWS AND INTERCEPT --
@@ -288,7 +281,6 @@ else
     insert(custom_palette, HSL(m / 24+0.69, 0.1, 0.2, 1))
   end
 end
-
 
 
 -- GET ITEM OR TRACK COLORS FOR HIGHLIGHTING AND COLORING (CACHE) -- 
@@ -641,13 +633,12 @@ function shuffled_numbers (n)
 end
 
 
-
 -- COLOR NEW TRACKS AUTOMATICALLY --
 local function Color_new_tracks_automatically() 
 local track_number_sw, stored_val, found, track, tr_ip, prev_tr_ip, state2
 return function(sel_tracks, test_track, state, tr_cnt)
   local track = GetTrack(0, tr_cnt-1) 
-  if track and track ~= col_tbl.ptr[#col_tbl.ptr] and test_track ~= track  then
+  if track and track ~= col_tbl.ptr[#col_tbl.ptr] and test_track ~= track and reaper.GetTrackColor(track) == 0 then
     for i = 0, tr_cnt-track_number_stop-1 do
       local track = GetTrack(0, tr_cnt-(tr_cnt-track_number_stop)+i)
       state = state+1
@@ -675,45 +666,48 @@ return function(sel_tracks, test_track, state, tr_cnt)
     Undo_BeginBlock2(0)
     for i = 0, sel_tracks-1 do
       track = GetSelectedTrack(0, i) 
-      state = state+1
-      if stored_val and state2 == state then -- if already a new track was created and the color of it is known
-        SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[stored_val%remainder+1])
-        if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
-          Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.it[stored_val%remainder+1])
-        end
-        stored_val, state2 = stored_val+1, state +1
-      else
-        tr_ip = GetMediaTrackInfo_Value(track, 'IP_TRACKNUMBER')
-        if track ~= col_tbl.ptr[tr_ip] then
-          prev_tr_ip = tr_ip-1
-          if prev_tr_ip > 0 then
-            for o=1, #auto_track.auto_palette do
-              if auto_track.auto_palette[o]==col_tbl.tr[prev_tr_ip] then
-                SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[o%remainder+1])
-                if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
-                  Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.it[o%remainder+1])
+      local trk_color = reaper.GetTrackColor(track)
+      if trk_color == 0 then
+        state = state+1
+        if stored_val and state2 == state then -- if already a new track was created and the color of it is known
+          SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[stored_val%remainder+1])
+          if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
+            Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.it[stored_val%remainder+1])
+          end
+          stored_val, state2 = stored_val+1, state +1
+        else
+          tr_ip = GetMediaTrackInfo_Value(track, 'IP_TRACKNUMBER')
+          if track ~= col_tbl.ptr[tr_ip] then
+            prev_tr_ip = tr_ip-1
+            if prev_tr_ip > 0 then
+              for o=1, #auto_track.auto_palette do
+                if auto_track.auto_palette[o]==col_tbl.tr[prev_tr_ip] then
+                  SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[o%remainder+1])
+                  if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
+                    Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.it[o%remainder+1])
+                  end
+                  found, stored_val, state2 = true, o+1, state +1
+                  break
                 end
-                found, stored_val, state2 = true, o+1, state +1
-                break
               end
-            end
-            if not found then 
+              if not found then 
+                SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[1])
+                if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
+                  Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.tr[1])
+                end
+                
+                stored_val, state2 = 1, state +1
+              end
+            else
               SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[1])
               if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
                 Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.tr[1])
               end
-              
-              stored_val, state2 = 1, state +1
+              stored_val, state2  = 1, state +1
             end
           else
-            SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[1])
-            if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
-              Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.tr[1])
-            end
-            stored_val, state2  = 1, state +1
+            state2 = 1 -- it just needs a value...
           end
-        else
-          state2 = 1 -- it just needs a value...
         end
       end
     end
@@ -895,23 +889,11 @@ local function CollapsedPalette(init_state)
   if go then
     sel_items = CountSelectedMediaItems(0)
   end
+  local test_item = GetSelectedMediaItem(0, 0) 
   local sel_tracks = CountSelectedTracks(0)
   local test_track = GetSelectedTrack(0, 0)
   local tr_cnt = CountTracks(0)
   
-  if (sel_tracks == 0 or GetCursorContext2(true) ~= 0) and sel_items > 0 then
-    test_item = GetSelectedMediaItem(0, 0) 
-    if item then
-      test_take = GetActiveTake(test_item)
-      test_track_it = GetMediaItemTrack(test_item)
-      items_mode = 1
-    end
-  elseif sel_tracks > 0 then
-    items_mode, test_item_sw, test_item = 0, nil
-  else 
-    sel_color = {}
-    items_mode, test_track_sw, test_item_sw, test_item = 2, nil
-  end
   
   -- AUTO TRACK COLORING AND TABLE PATCH DEPENDENT ON SETTINGS --
   if auto_trk then
@@ -960,7 +942,28 @@ local function CollapsedPalette(init_state)
     cust_tbl = generate_custom_color_table()
   end
   
-  --
+  if rvs2 ~= (seen_msgs[2] or 0) then
+    if sel_items > 0 then
+      it_cnt_sw = nil
+      if test_item then
+        test_take = GetActiveTake(test_item)
+        test_track_it = GetMediaItemTrack(test_item)
+        test_track_sw = nil
+      end
+      items_mode = 1
+    elseif sel_tracks > 0 then
+      items_mode, test_item = 0, nil
+    else
+      items_mode = 2
+      sel_color = {}
+    end
+    seen_msgs[2] = rvs2
+  -- MOUSE CLICK TCP --
+  elseif rvs3 ~= (seen_msgs[3] or 0) and (static_mode == 0 or static_mode == 1) then
+    items_mode = 0
+    seen_msgs[3] = rvs3
+  end
+  
   -- CHECK FOR CURRENT DRAWN ITEM IN SHINY MODE OR WHEN SET NEW ITEMS TO CUSTOM COLOR IS SET --
   if selected_mode == 1 or automode_id == 2 then
     DrawnItem(rvs2, rvs5, rvs6)
@@ -992,7 +995,6 @@ end
 
 
 -- LOOP -- MAIN FUNCTION --
-
 local function loop()
   local init_state = GetProjectStateChangeCount(0)
   if init_state ~= init_state_saved then
@@ -1007,8 +1009,8 @@ end
 
 
 --local start_script
--- EXECUTE --
 
+-- EXECUTE --
 if auto_trk == false and selected_mode == 0 then
   local start_script = reaper.MB("No AutoColor option configured yet. \n\nThis script is meant\nas an extension of the\n\n'CHROMA - Coloring Tool' script\n\nto run all Auto Coloring features in a discrete state.\n\nFor full support, please run the Coloring Tool, set all colors in the two available palettes and the automatic coloring options under Settings/Advanced Settings/Autocoloring according to your needs.\n\n Do you want to continue with 'Automatically color new tracks' engaged?", "CHROMA - Discrete Autocoloring", 4)
   if start_script == 6 then
@@ -1024,11 +1026,10 @@ if selected_mode == 1 or auto_trk == true then
   reaper.JS_WindowMessage_Intercept(ruler_win, 'WM_LBUTTONUP', true)
   reaper.JS_WindowMessage_Intercept(arrange, 'WM_LBUTTONDOWN', true)
   reaper.JS_WindowMessage_Intercept(arrange, 'WM_LBUTTONUP', true)
-  SetButtonState(1)
-  reaper.set_action_options(1)
+  reaper.set_action_options(1|4)
   defer(loop)
-  reaper.atexit(SetButtonState)
   reaper.atexit(function()
+    reaper.set_action_options(8)
     reaper.JS_WindowMessage_Release(ruler_win, 'WM_LBUTTONUP')
     reaper.JS_WindowMessage_Release(arrange, 'WM_LBUTTONDOWN')
     reaper.JS_WindowMessage_Release(arrange, 'WM_LBUTTONUP')

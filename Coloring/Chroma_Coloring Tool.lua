@@ -1,9 +1,13 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.9.2.1
---  @date 25.08.23
+--  @version 0.9.2.2
+--  @date 25.09.20
 --
 --  @changelog
+--    0.9.2.2
+--    Bug fixes: 
+--    - if autocoloring for tracks is activated, check if a track has already a color
+
 --    0.9.2.1
 --    Bug fixes: 
 --    - fix loading color table on first use ever (what a shame!)
@@ -2023,7 +2027,7 @@ local function Color_new_tracks_automatically()
   local track_number_sw, stored_val, found, track, tr_ip, prev_tr_ip, state2
   return function(sel_tracks, test_track, state, tr_cnt)
     local track = GetTrack(0, tr_cnt-1) 
-    if track and track ~= col_tbl.ptr[#col_tbl.ptr] and test_track ~= track  then
+    if track and track ~= col_tbl.ptr[#col_tbl.ptr] and test_track ~= track and reaper.GetTrackColor(track) == 0 then
       for i = 0, tr_cnt-track_number_stop-1 do
         local track = GetTrack(0, tr_cnt-(tr_cnt-track_number_stop)+i)
         state = state+1
@@ -2050,46 +2054,49 @@ local function Color_new_tracks_automatically()
     elseif sel_tracks > 0 then
       Undo_BeginBlock2(0)
       for i = 0, sel_tracks-1 do
-        track = GetSelectedTrack(0, i) 
-        state = state+1
-        if stored_val and state2 == state then -- if already a new track was created and the color of it is known
-          SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[stored_val%remainder+1])
-          if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
-            Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.it[stored_val%remainder+1])
-          end
-          stored_val, state2 = stored_val+1, state +1
-        else
-          tr_ip = GetMediaTrackInfo_Value(track, 'IP_TRACKNUMBER')
-          if track ~= col_tbl.ptr[tr_ip] then
-            prev_tr_ip = tr_ip-1
-            if prev_tr_ip > 0 then
-              for o=1, #auto_track.auto_palette do
-                if auto_track.auto_palette[o]==col_tbl.tr[prev_tr_ip] then
-                  SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[o%remainder+1])
-                  if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
-                    Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.it[o%remainder+1])
+        track = GetSelectedTrack(0, i)
+        local trk_color = reaper.GetTrackColor(track)
+        if trk_color == 0 then
+          state = state+1
+          if stored_val and state2 == state then -- if already a new track was created and the color of it is known
+            SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[stored_val%remainder+1])
+            if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
+              Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.it[stored_val%remainder+1])
+            end
+            stored_val, state2 = stored_val+1, state +1
+          else
+            tr_ip = GetMediaTrackInfo_Value(track, 'IP_TRACKNUMBER')
+            if track ~= col_tbl.ptr[tr_ip] then
+              prev_tr_ip = tr_ip-1
+              if prev_tr_ip > 0 then
+                for o=1, #auto_track.auto_palette do
+                  if auto_track.auto_palette[o]==col_tbl.tr[prev_tr_ip] then
+                    SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[o%remainder+1])
+                    if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
+                      Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.it[o%remainder+1])
+                    end
+                    found, stored_val, state2 = true, o+1, state +1
+                    break
                   end
-                  found, stored_val, state2 = true, o+1, state +1
-                  break
                 end
-              end
-              if not found then 
+                if not found then 
+                  SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[1])
+                  if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
+                    Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.tr[1])
+                  end
+                  
+                  stored_val, state2 = 1, state +1
+                end
+              else
                 SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[1])
                 if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
                   Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.tr[1])
                 end
-                
-                stored_val, state2 = 1, state +1
+                stored_val, state2  = 1, state +1
               end
             else
-              SetMediaTrackInfo_Value(track,"I_CUSTOMCOLOR", auto_track.auto_pal.tr[1])
-              if selected_mode == 1 and reaper.GetTrackMediaItem(track, 0) then
-                Color_items_to_track_color_in_shiny_mode(track, auto_track.auto_pal.tr[1])
-              end
-              stored_val, state2  = 1, state +1
+              state2 = 1 -- it just needs a value...
             end
-          else
-            state2 = 1 -- it just needs a value...
           end
         end
       end
