@@ -1,6 +1,6 @@
 --  @description Discrete Auto Coloring (Chroma_Exntension)
 --  @author olshalom, vitalker
---  @version 0.7
+--  @version 0.7.1
 --  @date 25.09.20
 --  @changelog
 --    0.7
