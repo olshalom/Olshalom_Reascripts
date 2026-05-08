@@ -1,8 +1,13 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.9.2.3
---  @date 25.09.20
+--  @version 0.9.2.4
+--  @date 26.05.08
 --
+--  @changelog
+--    0.9.2.4
+--    Improvements:
+--    - Pressing the “Current” button in the color picker popup now applies the current color to selected elements
+
 --  @changelog
 --    0.9.2.2
 --    Bug fixes: 
@@ -4341,7 +4346,7 @@ function ActionsPopUp(sel_items, sel_tracks, tr_cnt, test_item, pop_key, current
     if open_popup4 then
       ImGui.PopFont(ctx)
       ImGui.PushFont(ctx, nil, want_font_size2)
-      rgba2, got_color =ColorEditPopup(backup_color, rgba2, custom_palette[pop_key] )
+      rgba2, got_color =ColorEditPopup(backup_color, rgba2, custom_palette[pop_key], 1, sel_items, sel_tracks, tr_cnt, 'custom_palette')
       if got_color then
         auto_track.auto_pal, cust_tbl  = nil
         if pre_cntrl.custom.stop then
@@ -5105,7 +5110,7 @@ local function hovered_button(bitfield, mods_retval)
 end
 
 
-function ColorEditPopup(backup2, color2, ref_col2)
+function ColorEditPopup(backup2, color2, ref_col2, enable, sel_items, sel_tracks, tr_cnt, specific)
   if not backup2 then backup2 = color2 end
   ImGui.PushStyleColor(ctx, ImGui.Col_Text, 0xffffffff)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_ItemSpacing, 0, size*0.1)
@@ -5114,7 +5119,17 @@ function ColorEditPopup(backup2, color2, ref_col2)
   if sys_os == 1 then ImGui.SameLine(ctx, size*10) else ImGui.SameLine(ctx, size*10.5) end
   ImGui.BeginGroup(ctx) -- Lock X position
   ImGui.Text(ctx, 'Current')
-  ImGui.ColorButton(ctx, '##current2', color2, ImGui.ColorEditFlags_NoPicker, size*2, size*1.5)
+  
+  if ImGui.ColorButton(ctx, '##current2', color2, ImGui.ColorEditFlags_NoPicker | ImGui.ColorEditFlags_NoTooltip, size*2, size*1.5) then
+    if enable then
+      coloring(sel_items, sel_tracks, ImGui.ColorConvertNative(color2 >>8)|0x1000000, Background_color_rgba(color2), nil, color2, tr_cnt, nil, nil, specific)
+    end
+  end
+  
+  if ImGui.IsItemHovered(ctx, ImGui.HoveredFlags_DelayNormal | ImGui.HoveredFlags_NoSharedDelay) then
+    ImGui.SetTooltip(ctx, '\nApply custom color to selected elements\n\n')
+  end
+  
   ImGui.Dummy(ctx, 0, 1)
   ImGui.Text(ctx, 'Previous')
   if ImGui.ColorButton(ctx, '##previous', backup2, ImGui.ColorEditFlags_NoPicker, size*2, size*1.5) then
@@ -5647,7 +5662,7 @@ local function ColorPalette(init_state, go, w, h, av_x, size, size2, spacing, si
       end
       local open_popup = ImGui.BeginPopup(ctx, 'Choose color#1')
       if open_popup then
-        rgba2 =ColorEditPopup(backup_color, rgba2, custom_palette[m] )
+        rgba2 =ColorEditPopup(backup_color, rgba2, custom_palette[m], 1, sel_items, sel_tracks, tr_cnt, 'custom_palette')
         if got_color then
            custom_palette[m], auto_track.auto_pal, cust_tbl = rgba2, nil
           SetPreviewValueModified(pre_cntrl.custom, 'stop', false)
@@ -5709,7 +5724,7 @@ local function ColorPalette(init_state, go, w, h, av_x, size, size2, spacing, si
     ImGui.PushStyleColor(ctx, ImGui.Col_Text, button_colors[13][4]) 
     local open_popup2 = ImGui.BeginPopup(ctx, 'Choose color#2')
     if open_popup2 then
-      rgba, rv = ColorEditPopup(backup_color2, rgba, rgba)
+      rgba, rv = ColorEditPopup(backup_color2, rgba, rgba, 1, sel_items, sel_tracks, tr_cnt, 'custom')
       if rv then
         button_colors[11][3] = rgba
         GenerateFrameColor(button_colors[11])
