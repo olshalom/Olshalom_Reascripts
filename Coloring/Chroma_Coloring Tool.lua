@@ -4,11 +4,15 @@
 --  @date 26.05.08
 --
 --  @changelog
+--    0.9.2.5
+--    Bug fixes:
+--    fix "Quit after coloring" along with apply “Current” button in the color picker popup
+--    fix LastTouchedColor when “Current” button in the color picker popup is used
+
 --    0.9.2.4
 --    Improvements:
 --    - Pressing the “Current” button in the color picker popup now applies the current color to selected elements
 
---  @changelog
 --    0.9.2.2
 --    Bug fixes: 
 --    - if autocoloring for tracks is activated, check if a track has already a color
@@ -5123,6 +5127,8 @@ function ColorEditPopup(backup2, color2, ref_col2, enable, sel_items, sel_tracks
   if ImGui.ColorButton(ctx, '##current2', color2, ImGui.ColorEditFlags_NoPicker | ImGui.ColorEditFlags_NoTooltip, size*2, size*1.5) then
     if enable then
       coloring(sel_items, sel_tracks, ImGui.ColorConvertNative(color2 >>8)|0x1000000, Background_color_rgba(color2), nil, color2, tr_cnt, nil, nil, specific)
+      if set_cntrl.quit then set_cntrl.open = true end
+      last_touched_color  = color2
     end
   end
   
@@ -5608,7 +5614,7 @@ local function ColorPalette(init_state, go, w, h, av_x, size, size2, spacing, si
   
   ImGui.PushFont(ctx, nil, want_font_size2)
   ImGui.PushStyleVar(ctx, ImGui.StyleVar_FrameRounding, size*button_colors[15][13])    -- general rounding for color widgets
-  
+
   -- CUSTOM COLOR PALETTE --
   if show_custompalette then
     for m=1, #custom_palette do
@@ -5640,11 +5646,13 @@ local function ColorPalette(init_state, go, w, h, av_x, size, size2, spacing, si
           if mods_retval == 8192 then
             sel_color[1] = col
             Color_multiple_elements_to_palette_colors(sel_tracks, sel_items, true, custom_palette, 1, set_cntrl.random_custom, cust_tbl.tr[m], cust_tbl.it[m], m)
+            if set_cntrl.quit then set_cntrl.open = true end
           else
             coloring(sel_items, sel_tracks, cust_tbl.tr[m], cust_tbl.it[m], mods_retval, col, tr_cnt, m, 24, 'custom_palette') 
             if mods_retval ~= 20480 then
               last_touched_color = col
               sel_color[1] = col
+              if set_cntrl.quit then set_cntrl.open = true end
             end
           end
         else
@@ -5654,7 +5662,7 @@ local function ColorPalette(init_state, go, w, h, av_x, size, size2, spacing, si
         if ImGui.IsItemClicked(ctx, ImGui.MouseButton_Right) then
           ImGui.OpenPopup(ctx, '##Settings5')
         end
-        if set_cntrl.quit then set_cntrl.open = true end
+        
       end
       if highlight2 == true then
         ImGui.PopStyleColor(ctx,1)
