@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="Olshalom_Reascripts" commit="e0819c118afe8335e5f47871a6f90d40cecb70ad">
+<index version="1" name="Olshalom_Reascripts" commit="0d06bd3c48e72ee9636bff5bbc971fbfc9e17117">
   <category name="Coloring">
     <reapack name="Chroma_Coloring Tool.lua" type="script" desc="Chroma - Coloring Tool">
       <version name="0.7.1" author="olshalom, vitalker" time="2023-08-07T21:12:07Z">
@@ -929,6 +929,13 @@ Bug fixes:
 Improvements:
 - Pressing the “Current” button in the color picker popup now applies the current color to selected elements]]></changelog>
         <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/e0819c118afe8335e5f47871a6f90d40cecb70ad/Coloring/Chroma_Coloring%20Tool.lua</source>
+      </version>
+      <version name="0.9.2.5" author="olshalom, vitalker" time="2026-05-10T22:49:22Z">
+        <changelog><![CDATA[0.9.2.5
+Bug fixes:
+fix "Quit after coloring" along with apply “Current” button in the color picker popup
+fix LastTouchedColor when “Current” button in the color picker popup is used]]></changelog>
+        <source main="main">https://github.com/olshalom/Olshalom_Reascripts/raw/0d06bd3c48e72ee9636bff5bbc971fbfc9e17117/Coloring/Chroma_Coloring%20Tool.lua</source>
       </version>
     </reapack>
     <reapack name="Discrete Auto Coloring (Chroma_Extension).lua" type="script" desc="Discrete Auto Coloring (Chroma_Exntension)">
