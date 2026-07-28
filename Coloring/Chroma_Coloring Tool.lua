@@ -1,9 +1,13 @@
 --  @description Chroma - Coloring Tool
 --  @author olshalom, vitalker
---  @version 0.9.2.5
---  @date 26.05.08
+--  @version 0.9.2.6
+--  @date 26.07.28
 --
 --  @changelog
+--    0.9.2.6
+--      Bugfixes:
+--      - refined undo-history tracking to prevent accidentally undoing a redo
+
 --    0.9.2.5
 --    Bug fixes:
 --    fix "Quit after coloring" along with apply “Current” button in the color picker popup
@@ -626,7 +630,7 @@ local items_mode, item_sw, takecolor2, projfn2, h, sel_mk, set_pos2, max_y2
 local button_text1, button_text2, button_text3, button_text4, button_text5       
 local remainder, init_state_saved, max_x, max_y, go, mouse_over
 local old_project, track_number_stop, tr_cnt_sw
-local set_pos, takelane_mode2, visible2, timer2, sel_tracks2 
+local set_pos, takelane_mode2, visible2, timer2, sel_tracks2, last_tr_cnt
 local resize, can_re, counter = 0, "", 0
 local test_take, test_take2, test_track_it, test_item_sw, test_track_sw, sel_items, sel_items_sw, it_cnt_sw, track_sw2
 local check_mark = 0
@@ -5331,6 +5335,8 @@ local function ColorPalette(init_state, go, w, h, av_x, size, size2, spacing, si
   local title_h = select(2, ImGui.GetCursorStartPos(ctx)) + ImGui.GetScrollY(ctx) - select(2, ImGui.GetStyleVar(ctx, ImGui.StyleVar_WindowPadding))
   local mods_retval = ImGui.GetKeyMods(ctx)
   local undoStr = Undo_CanUndo2(nil)
+  local redoStr = Undo_CanRedo2(nil)
+  local autoUndoStr = 'CHROMA: Automatically color new tracks'
 
   -- DEFINE "GLOBAL" VARIABLES --
   if go then
@@ -5358,19 +5364,18 @@ local function ColorPalette(init_state, go, w, h, av_x, size, size2, spacing, si
     
   -- IF UNDO THEN RESET CACHES --
   if go then
-    local redoStr = Undo_CanRedo2(nil)
     if redoStr
       and (redoStr ~= can_re or undo_str == redoStr)
         and string.match(redoStr, "CHROMA:") then 
-    it_cnt_sw, test_track_sw, col_tbl = nil
-    can_re = redoStr 
+      it_cnt_sw, test_track_sw, col_tbl = nil
+      can_re = redoStr 
     end
   end 
   
   -- AUTO TRACK COLORING AND TABLE PATCH DEPENDENT ON SETTINGS --
   if auto_trk then
     track_number_stop = track_number_stop or tr_cnt
-    if tr_cnt > track_number_stop then
+    if tr_cnt > track_number_stop and redoStr ~= autoUndoStr then
       if not auto_track.auto_pal then
         if auto_track.auto_custom then
           auto_track.auto_pal = cust_tbl
@@ -5514,9 +5519,13 @@ local function ColorPalette(init_state, go, w, h, av_x, size, size2, spacing, si
   end 
   
   -- UNDO after adding tracks --
-  if reaper.Undo_CanRedo2(0) =='CHROMA: Automatically color new tracks' then
+  if tr_cnt == last_tr_cnt and redoStr == autoUndoStr then
     reaper.Undo_DoUndo2(0)
+  elseif last_tr_cnt and tr_cnt > last_tr_cnt and redoStr == autoUndoStr then
+    reaper.Undo_DoRedo2(0)
+    track_number_stop = tr_cnt
   end
+  last_tr_cnt = tr_cnt
   
   -- SWITCHING BETWEEN MODES ALONG WITH MARKERS AND REGIONS --
 
@@ -6105,6 +6114,8 @@ local function CollapsedPalette(init_state, go)
   local test_track = GetSelectedTrack(0, 0)
   local tr_cnt = CountTracks(0)
   local undoStr = Undo_CanUndo2(nil)
+  local redoStr = Undo_CanRedo2(nil)
+  local autoUndoStr = 'CHROMA: Automatically color new tracks'
 
   if (sel_tracks == 0 or GetCursorContext2(true) ~= 0) and sel_items > 0 then 
     test_item = GetSelectedMediaItem(0, 0) 
@@ -6120,8 +6131,8 @@ local function CollapsedPalette(init_state, go)
   
   -- AUTO TRACK COLORING AND TABLE PATCH DEPENDENT ON SETTINGS --
   if auto_trk then
-    if not track_number_stop then track_number_stop = tr_cnt end
-    if tr_cnt > track_number_stop then
+    track_number_stop = track_number_stop or tr_cnt
+    if tr_cnt > track_number_stop and redoStr ~= autoUndoStr then
       if not auto_track.auto_pal then
         if auto_track.auto_custom then
           auto_track.auto_pal = cust_tbl
@@ -6152,9 +6163,13 @@ local function CollapsedPalette(init_state, go)
   end  
   
   -- UNDO after adding tracks --
-  if reaper.Undo_CanRedo2(0) =='CHROMA: Automatically color new tracks' then
+  if tr_cnt == last_tr_cnt and redoStr == autoUndoStr then
     reaper.Undo_DoUndo2(0)
+  elseif last_tr_cnt and tr_cnt > last_tr_cnt and redoStr == autoUndoStr then
+    reaper.Undo_DoRedo2(0)
+    track_number_stop = tr_cnt
   end
+  last_tr_cnt = tr_cnt
   
   if not main_palette then
     main_palette = Palette()
